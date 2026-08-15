@@ -5,6 +5,7 @@ import { MOCK_CASES } from '@/lib/mock-data';
 import { CaseData, WindowPreset, SignatureData } from '@/lib/types';
 import { DicomStudy, loadStudyFromZip, StudyLoadError } from '@/lib/dicom/study';
 import { AttentionRegion, analyzeStudyAttention } from '@/lib/dicom/analyze';
+import { analyzeViaService, checkAiService } from '@/lib/dicom/aiClient';
 import { FullscreenViewer } from '@/components/FullscreenViewer';
 import { Header } from '@/components/Header';
 import { CaseSelector } from '@/components/CaseSelector';
@@ -34,6 +35,8 @@ export default function Home() {
   const [isLoadingStudy, setIsLoadingStudy] = useState<boolean>(false);
   const [attentionRegions, setAttentionRegions] = useState<AttentionRegion[]>([]);
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
+  const [uploadedZipFile, setUploadedZipFile] = useState<File | null>(null);
+  const [analysisEngine, setAnalysisEngine] = useState<string>('');
 
   // AI Pipeline state
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
@@ -141,6 +144,7 @@ export default function Home() {
       };
 
       setDicomStudy(study);
+      setUploadedZipFile(file);
       setAttentionRegions([]);
       setCustomImageDataUrl(null);
       setCustomCase(zipCase);
@@ -245,14 +249,41 @@ export default function Home() {
     setGenerationStep(1);
     setProgressPercent(5);
 
-    const regions = await analyzeStudyAttention(dicomStudy, (p) => {
-      setGenerationStep(p < 60 ? 1 : 2);
-      setProgressPercent(5 + Math.round(p * 0.82));
-    });
+    // Prefer the local AI service (real ML engines plug in there); fall
+    // back to the in-browser statistical analyzer when it is not running.
+    let regions: AttentionRegion[] = [];
+    let engineLabel = 'Встроенный статистический анализ (браузер)';
+    let serviceSummary = '';
+    let analyzedByService = false;
+
+    const service = await checkAiService();
+    if (service && uploadedZipFile) {
+      try {
+        setToastMessage('Анализ на локальном AI-сервисе…');
+        setGenerationStep(2);
+        setProgressPercent(35);
+        const res = await analyzeViaService(uploadedZipFile);
+        regions = res.regions;
+        engineLabel = `AI-сервис: ${res.engineName}`;
+        serviceSummary = res.summary;
+        analyzedByService = true;
+      } catch (err) {
+        setToastMessage(
+          `AI-сервис недоступен (${err instanceof Error ? err.message : 'ошибка'}) — встроенный анализ`,
+        );
+      }
+    }
+    if (!analyzedByService) {
+      regions = await analyzeStudyAttention(dicomStudy, (p) => {
+        setGenerationStep(p < 60 ? 1 : 2);
+        setProgressPercent(5 + Math.round(p * 0.82));
+      });
+    }
 
     setGenerationStep(3);
     setProgressPercent(93);
     setAttentionRegions(regions);
+    setAnalysisEngine(engineLabel);
 
     const isCT = dicomStudy.modality.toUpperCase() === 'CT';
     const regionLines = regions.map(
@@ -263,6 +294,7 @@ export default function Home() {
     );
 
     const findings =
+      `Метод анализа: ${engineLabel}.${serviceSummary ? ` ${serviceSummary}.` : ''}\n\n` +
       `На серии срезов (${dicomStudy.slices.length} изображений, ${dicomStudy.modality}) анатомические структуры дифференцированы, взаимное расположение сохранено.\n\n` +
       (regions.length > 0
         ? `Автоматический статистический анализ плотности выявил ${regions.length} зон(у/ы) внимания:\n${regionLines.join(
@@ -474,6 +506,11 @@ export default function Home() {
             {/* Structured Report Editor (Appears after AI generation) */}
             {isGenerated ? (
               <>
+                {analysisEngine && (
+                  <div className="px-3 py-1.5 rounded-lg bg-[#111827] border border-[#1E293B] text-[10px] font-mono text-[#94A3B8]">
+                    Движок анализа: <span className="text-[#00D2FF]">{analysisEngine}</span>
+                  </div>
+                )}
                 <ReportEditor
                   currentCase={activeCase}
                   findingsText={findingsText}
