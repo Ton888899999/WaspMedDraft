@@ -33,9 +33,18 @@ class LungmaskEngine(Engine):
     )
     modalities = ("CT",)
 
+    # The R231 weights take seconds to load — keep one inferer per process.
+    _inferer = None
+
     @classmethod
     def available(cls) -> bool:
         return _AVAILABLE
+
+    @classmethod
+    def _get_inferer(cls):
+        if cls._inferer is None:
+            cls._inferer = LMInferer(modelname="R231")
+        return cls._inferer
 
     def analyze(self, series: Series) -> AnalysisResult:
         image = sitk.GetImageFromArray(series.pixels.astype(np.float32))
@@ -43,8 +52,7 @@ class LungmaskEngine(Engine):
             z, y, x = series.spacing_mm
             image.SetSpacing((x, y, z))
 
-        inferer = LMInferer(modelname="R231")
-        mask = inferer.apply(image)  # (slices, rows, cols); 0 bg, 1 right, 2 left
+        mask = self._get_inferer().apply(image)  # (slices, rows, cols); 0 bg, 1 right, 2 left
 
         lung_voxels = int((mask > 0).sum())
         regions: list[Region] = []

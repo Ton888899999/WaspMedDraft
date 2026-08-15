@@ -59,6 +59,7 @@ export const FullscreenViewer: React.FC<FullscreenViewerProps> = ({
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [showRegions, setShowRegions] = useState(true);
   const [isCine, setIsCine] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
   const dragRef = useRef<{ x: number; y: number } | null>(null);
   const totalSlices = study.slices.length;
   const slice = study.slices[Math.max(0, currentSlice - 1)];
@@ -141,6 +142,7 @@ export const FullscreenViewer: React.FC<FullscreenViewerProps> = ({
 
   const handleMouseDown = (e: React.MouseEvent) => {
     dragRef.current = { x: e.clientX - pan.x, y: e.clientY - pan.y };
+    setIsDragging(true);
   };
   const handleMouseMove = (e: React.MouseEvent) => {
     if (!dragRef.current) return;
@@ -148,6 +150,7 @@ export const FullscreenViewer: React.FC<FullscreenViewerProps> = ({
   };
   const endDrag = () => {
     dragRef.current = null;
+    setIsDragging(false);
   };
 
   return (
@@ -178,7 +181,7 @@ export const FullscreenViewer: React.FC<FullscreenViewerProps> = ({
       {/* Canvas area */}
       <div
         className={`relative flex-1 overflow-hidden flex items-center justify-center ${
-          dragRef.current ? 'cursor-grabbing' : 'cursor-grab'
+          isDragging ? 'cursor-grabbing' : 'cursor-grab'
         }`}
         onWheel={handleWheel}
         onMouseDown={handleMouseDown}
@@ -191,7 +194,7 @@ export const FullscreenViewer: React.FC<FullscreenViewerProps> = ({
           className="flex items-center justify-center w-full h-full"
           style={{
             transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
-            transition: dragRef.current ? 'none' : 'transform 80ms ease-out',
+            transition: isDragging ? 'none' : 'transform 80ms ease-out',
           }}
         >
           <DicomSliceCanvas

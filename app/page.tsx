@@ -69,6 +69,9 @@ export default function LandingPage() {
   const [theme, setTheme] = React.useState<Theme>('dark');
   const t = T[lang];
 
+  /* eslint-disable react-hooks/set-state-in-effect --
+     SSR-safe client preference hydration and demo-loop state machine:
+     these synchronous setStates in effects are intentional. */
   React.useEffect(() => {
     const storedLang = localStorage.getItem('medai-lang');
     if (storedLang === 'ru' || storedLang === 'uz' || storedLang === 'en') setLang(storedLang);
@@ -138,6 +141,7 @@ export default function LandingPage() {
     }
     return () => clearTimeout(timer);
   }, [phase, typedCount, fullReport]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const restartDemo = () => {
     setTypedCount(0);

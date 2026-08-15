@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useRef } from 'react';
+import React, { memo, useEffect, useMemo, useRef } from 'react';
 import { WindowPreset } from '@/lib/types';
 import { DicomStudy } from '@/lib/dicom/study';
 import { AttentionRegion } from '@/lib/dicom/analyze';
@@ -16,22 +16,27 @@ interface DicomSliceCanvasProps {
   className?: string;
 }
 
-/** Draws a real DICOM slice with window/level applied to the raw pixel data. */
-export const DicomSliceCanvas: React.FC<DicomSliceCanvasProps> = ({
+const NO_REGIONS: AttentionRegion[] = [];
+
+/** Draws a real DICOM slice with window/level applied to the raw pixel data.
+    Memoized: parent hover-state re-renders must not redo the windowing pass. */
+export const DicomSliceCanvas: React.FC<DicomSliceCanvasProps> = memo(function DicomSliceCanvas({
   study,
   sliceIndex,
   windowPreset,
   isInverted,
-  regions = [],
+  regions = NO_REGIONS,
   showRegions = true,
   className,
-}) => {
+}) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const slice = study.slices[Math.min(sliceIndex, study.slices.length - 1)];
   const sliceNumber = sliceIndex + 1;
-  const activeRegions = showRegions
-    ? regions.filter((r) => Math.abs(r.sliceNumber - sliceNumber) <= 2)
-    : [];
+  const activeRegions = useMemo(
+    () =>
+      showRegions ? regions.filter((r) => Math.abs(r.sliceNumber - sliceNumber) <= 2) : NO_REGIONS,
+    [regions, showRegions, sliceNumber],
+  );
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -105,4 +110,4 @@ export const DicomSliceCanvas: React.FC<DicomSliceCanvasProps> = ({
       style={{ imageRendering: 'auto' }}
     />
   );
-};
+});

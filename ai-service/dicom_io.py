@@ -10,7 +10,6 @@ import zipfile
 
 import numpy as np
 import pydicom
-from pydicom.errors import InvalidDicomError
 
 from engines.base import Series
 
@@ -38,7 +37,7 @@ def load_series_from_zip(zip_bytes: bytes) -> tuple[Series, int]:
             ds = pydicom.dcmread(io.BytesIO(archive.read(info)), force=False)
             _ = ds.pixel_array  # decode now; raises for unsupported syntaxes
             datasets.append(ds)
-        except (InvalidDicomError, Exception):
+        except Exception:  # not a DICOM / unsupported transfer syntax
             skipped += 1
 
     if not datasets:

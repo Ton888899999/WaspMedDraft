@@ -13,9 +13,9 @@ const PRESET_WINDOWS: Record<WindowPreset, { center: number; width: number }> = 
 };
 
 /**
- * Renders a slice into ImageData, applying rescale, windowing and inversion.
- * Real windowing presets are applied for CT; other modalities use the
- * file's own window or a min/max stretch.
+ * Renders a slice into ImageData, applying rescale, windowing and
+ * inversion in a single pass over the raw pixel data (no intermediate
+ * float buffer — this runs on every scroll step of a 500-slice series).
  */
 export function renderSliceToImageData(
   slice: DicomSlice,
@@ -41,7 +41,23 @@ export function renderSliceToImageData(
     return new ImageData(out, w, h);
   }
 
-  const values = grayValues(slice);
+  const n = w * h;
+  const { rescaleSlope: slope, rescaleIntercept: intercept } = slice;
+  const is8bit = slice.bitsAllocated === 8;
+  const view = is8bit
+    ? null
+    : new DataView(slice.pixelBytes.buffer, slice.pixelBytes.byteOffset, slice.pixelBytes.byteLength);
+  const count = is8bit
+    ? Math.min(n, slice.pixelBytes.length)
+    : Math.min(n, Math.floor(slice.pixelBytes.length / 2));
+
+  const readRaw = (i: number): number =>
+    is8bit
+      ? slice.pixelBytes[i]
+      : slice.signed
+        ? view!.getInt16(i * 2, true)
+        : view!.getUint16(i * 2, true);
+
   let center: number;
   let width: number;
   if (isCT) {
@@ -51,35 +67,39 @@ export function renderSliceToImageData(
     width = slice.windowWidth;
   }
   if (width <= 0) {
+    // No usable window: stretch to the actual raw value range.
     let min = Infinity;
     let max = -Infinity;
-    for (let i = 0; i < values.length; i++) {
-      if (values[i] < min) min = values[i];
-      if (values[i] > max) max = values[i];
+    for (let i = 0; i < count; i++) {
+      const v = readRaw(i);
+      if (v < min) min = v;
+      if (v > max) max = v;
     }
-    center = (min + max) / 2;
-    width = Math.max(1, max - min);
+    center = ((min + max) / 2) * slope + intercept;
+    width = Math.max(1, (max - min) * Math.abs(slope));
   }
+
+  // Fold rescale + windowing into one linear map: g = raw * scale + offset.
   const low = center - width / 2;
+  const scale = (255 * slope) / width;
+  const offset = (255 * (intercept - low)) / width;
   const flip = inverted !== slice.monochrome1;
 
-  for (let i = 0; i < values.length; i++) {
-    let g = Math.round(((values[i] - low) / width) * 255);
+  for (let i = 0; i < count; i++) {
+    let g = readRaw(i) * scale + offset;
     g = g < 0 ? 0 : g > 255 ? 255 : g;
     if (flip) g = 255 - g;
-    out[i * 4] = g;
-    out[i * 4 + 1] = g;
-    out[i * 4 + 2] = g;
-    out[i * 4 + 3] = 255;
+    const o = i * 4;
+    out[o] = g;
+    out[o + 1] = g;
+    out[o + 2] = g;
+    out[o + 3] = 255;
   }
   return new ImageData(out, w, h);
 }
 
+/** Rescaled (HU for CT) values of a slice — used by the analyzer. */
 export function sliceGrayValues(slice: DicomSlice): Float32Array {
-  return grayValues(slice);
-}
-
-function grayValues(slice: DicomSlice): Float32Array {
   const n = slice.rows * slice.columns;
   const result = new Float32Array(n);
   const { rescaleSlope: s, rescaleIntercept: b } = slice;

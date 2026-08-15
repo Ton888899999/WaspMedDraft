@@ -190,8 +190,8 @@ export const DicomViewer: React.FC<DicomViewerProps> = ({
                 sliceIndex={Math.max(0, currentSlice - 1)}
                 windowPreset={windowPreset}
                 isInverted={isInverted}
-                regions={isAiGenerated ? attentionRegions : []}
-                showRegions={showAiOverlay}
+                regions={attentionRegions}
+                showRegions={isAiGenerated && showAiOverlay}
               />
             </div>
           ) : customImageDataUrl ? (
