@@ -153,7 +153,10 @@ export default function LandingPage() {
 
   /* reveal-on-scroll: cards and section heads fade in as they enter the viewport.
      The initial hidden state is applied only after JS adds .reveal-on, so the page
-     stays fully visible without JS or with prefers-reduced-motion. */
+     stays fully visible without JS or with prefers-reduced-motion.
+     Re-runs on language change: translated nodes are remounted with new keys and
+     would otherwise stay hidden — on re-runs everything is shown immediately. */
+  const revealRan = React.useRef(false);
   React.useEffect(() => {
     const root = document.querySelector('.landing');
     if (!root) return;
@@ -175,6 +178,12 @@ export default function LandingPage() {
     }
 
     root.classList.add('reveal-on');
+
+    if (revealRan.current) {
+      showNow();
+      return;
+    }
+    revealRan.current = true;
 
     if (!('IntersectionObserver' in window)) {
       showNow();
@@ -207,7 +216,7 @@ export default function LandingPage() {
       io.disconnect();
       window.clearTimeout(fallback);
     };
-  }, []);
+  }, [lang]);
 
   const reportBodyRef = React.useRef<HTMLDivElement>(null);
   React.useEffect(() => {
