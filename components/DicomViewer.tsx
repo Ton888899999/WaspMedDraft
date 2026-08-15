@@ -3,6 +3,8 @@
 import React, { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { CaseData, WindowPreset } from '@/lib/types';
+import { DicomStudy } from '@/lib/dicom/study';
+import { DicomSliceCanvas } from '@/components/DicomSliceCanvas';
 import { Eye, EyeOff, Maximize2, Sparkles, Target, ScanLine } from 'lucide-react';
 
 interface DicomViewerProps {
@@ -17,6 +19,7 @@ interface DicomViewerProps {
   onToggleAiOverlay: () => void;
   onSliceChange?: (slice: number) => void;
   customImageDataUrl?: string | null;
+  dicomStudy?: DicomStudy | null;
 }
 
 export const DicomViewer: React.FC<DicomViewerProps> = ({
@@ -30,6 +33,7 @@ export const DicomViewer: React.FC<DicomViewerProps> = ({
   showAiOverlay,
   onToggleAiOverlay,
   customImageDataUrl,
+  dicomStudy,
 }) => {
   const [crosshairPos, setCrosshairPos] = useState<{ x: number; y: number; hu: number } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -45,8 +49,11 @@ export const DicomViewer: React.FC<DicomViewerProps> = ({
     currentSlice >= currentCase.annotation.activeSliceRange[0] &&
     currentSlice <= currentCase.annotation.activeSliceRange[1];
 
-  // Get CSS filters based on windowing preset and inversion
+  // Get CSS filters based on windowing preset and inversion.
+  // Real DICOM slices get true window/level applied to the pixel data
+  // in DicomSliceCanvas, so no CSS approximation is layered on top.
   const getFilterStyle = () => {
+    if (dicomStudy) return 'none';
     let base = '';
     switch (windowPreset) {
       case 'soft_tissue':
@@ -147,7 +154,16 @@ export const DicomViewer: React.FC<DicomViewerProps> = ({
           }}
         >
           {/* RENDER MEDICAL IMAGES */}
-          {customImageDataUrl ? (
+          {dicomStudy ? (
+            <div className="relative w-full h-full p-4 flex items-center justify-center">
+              <DicomSliceCanvas
+                study={dicomStudy}
+                sliceIndex={Math.max(0, currentSlice - 1)}
+                windowPreset={windowPreset}
+                isInverted={isInverted}
+              />
+            </div>
+          ) : customImageDataUrl ? (
             <div className="relative w-full h-full p-4 flex items-center justify-center">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
@@ -532,7 +548,11 @@ export const DicomViewer: React.FC<DicomViewerProps> = ({
 
         {/* Bottom-Left HUD */}
         <div className="absolute bottom-3 left-3 font-mono text-[10px] text-[#10B981] z-10 space-y-0.5 pointer-events-none">
-          <p>TR: 4500ms | TE: 110ms</p>
+          {dicomStudy ? (
+            <p>{dicomStudy.slices[Math.max(0, currentSlice - 1)]?.fileName}</p>
+          ) : (
+            <p>TR: 4500ms | TE: 110ms</p>
+          )}
           <p>SLICE THICKNESS: {currentCase.sliceThickness}</p>
         </div>
 
@@ -556,8 +576,8 @@ export const DicomViewer: React.FC<DicomViewerProps> = ({
           L
         </div>
 
-        {/* Active Cursor Hover HUD */}
-        {crosshairPos && (
+        {/* Active Cursor Hover HUD (simulated HU — hidden for real DICOM data) */}
+        {crosshairPos && !dicomStudy && (
           <div className="absolute top-1/2 left-3 -translate-y-1/2 font-mono text-[10px] text-cyan-400 bg-slate-950/80 px-1.5 py-0.5 rounded border border-cyan-500/30 pointer-events-none">
             X:{crosshairPos.x} Y:{crosshairPos.y} | {crosshairPos.hu} HU
           </div>

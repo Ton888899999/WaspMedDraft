@@ -104,7 +104,7 @@ export const CaseSelector: React.FC<CaseSelectorProps> = ({
                 {uploadedFileName}
               </span>
             ) : (
-              'UPLOAD DICOM'
+              'ZIP · DICOM'
             )}
           </span>
         </div>

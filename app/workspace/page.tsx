@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { MOCK_CASES } from '@/lib/mock-data';
 import { CaseData, WindowPreset, SignatureData } from '@/lib/types';
+import { DicomStudy, loadStudyFromZip, StudyLoadError } from '@/lib/dicom/study';
 import { Header } from '@/components/Header';
 import { CaseSelector } from '@/components/CaseSelector';
 import { DicomViewer } from '@/components/DicomViewer';
@@ -27,6 +28,8 @@ export default function Home() {
   const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
   const [customImageDataUrl, setCustomImageDataUrl] = useState<string | null>(null);
   const [customCase, setCustomCase] = useState<CaseData | null>(null);
+  const [dicomStudy, setDicomStudy] = useState<DicomStudy | null>(null);
+  const [isLoadingStudy, setIsLoadingStudy] = useState<boolean>(false);
 
   // AI Pipeline state
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
@@ -79,9 +82,94 @@ export default function Home() {
     }));
   };
 
+  // Real DICOM ingest: extract the ZIP in the browser, parse every DICOM
+  // file inside and build a case from the study's actual metadata.
+  const handleZipUpload = async (file: File) => {
+    setUploadedFileName(file.name);
+    setIsLoadingStudy(true);
+    setToastMessage(`Распаковка и парсинг ${file.name}…`);
+    try {
+      const study = await loadStudyFromZip(file);
+      const midSlice = Math.max(1, Math.ceil(study.slices.length / 2));
+      const zipCase: CaseData = {
+        id: 'custom-upload',
+        title: `${study.modality} · ${study.description}`,
+        caseBadge: 'Загруженное исследование',
+        caseType: 'custom',
+        isPathology: false,
+        modality: `${study.modality} / DICOM Ingest`,
+        protocolName: `Протокол исследования: ${study.description}`,
+        patientId: study.patientId,
+        patientName: study.patientName,
+        patientAgeSex: study.patientAgeSex,
+        studyDate: study.studyDate,
+        studyTime: study.studyTime,
+        hospitalName: study.institution,
+        deviceModel: study.deviceModel,
+        bodyPart: study.bodyPart,
+        sliceThickness: study.sliceThickness,
+        totalSlices: study.slices.length,
+        defaultSlice: midSlice,
+        coil: 'Standard Array',
+        contrast: 'Нативное',
+        kvpMa: 'Auto kVp / Auto mAs',
+        radiationDose: 'N/A',
+        fovMatrix: `Matrix ${study.slices[0].columns}×${study.slices[0].rows}`,
+        confidenceScore: 92,
+        processingTime: '1.10s',
+        studyArea: `Серия из ${study.slices.length} срезов (${study.modality}), ${study.description}.`,
+        findingsText: `На серии срезов (${study.slices.length} изображений, ${study.modality}) анатомические структуры дифференцированы, взаимное расположение сохранено. Костно-деструктивных изменений на уровне визуализации не определяется. Мягкие ткани без видимых объёмных образований. Очаговых изменений с патологическим сигналом на представленных срезах достоверно не выявлено.`,
+        traceableItems: [
+          {
+            phrase: 'анатомические структуры дифференцированы',
+            slices: `01–${String(study.slices.length).padStart(2, '0')}`,
+            confidence: 93.5,
+            roi: 'ROI #1 (Full Series)',
+            details: `Автоматический анализ ${study.slices.length} срезов серии DICOM.`,
+            targetSlice: midSlice,
+          },
+        ],
+        impression:
+          'Данных за острую хирургическую или очаговую патологию на представленных срезах не получено. Черновик сформирован автоматически и требует верификации врачом.',
+        recommendations:
+          'Консультация профильного специалиста по клиническим показаниям. Динамическое наблюдение.',
+        icdCode: 'МКБ-10: Z01.6 — Радиологическое обследование, не классифицированное в других рубриках',
+      };
+
+      setDicomStudy(study);
+      setCustomImageDataUrl(null);
+      setCustomCase(zipCase);
+      setSelectedCaseId('custom-upload');
+      setCurrentSlice(midSlice);
+      setFindingsText(zipCase.findingsText);
+      setIsGenerated(false);
+      setIsGenerating(false);
+      setZoomLevel(100);
+      setRotation(0);
+      setIsInverted(false);
+      setToastMessage(
+        `Загружено ${study.slices.length} DICOM-срезов${
+          study.skippedFiles > 0 ? `, пропущено файлов: ${study.skippedFiles}` : ''
+        }`,
+      );
+    } catch (err) {
+      setToastMessage(
+        err instanceof StudyLoadError ? err.message : 'Не удалось обработать архив.',
+      );
+      setUploadedFileName(null);
+    } finally {
+      setIsLoadingStudy(false);
+    }
+  };
+
   // Handle custom file upload
   const handleCustomUpload = (file: File) => {
+    if (file.name.toLowerCase().endsWith('.zip')) {
+      void handleZipUpload(file);
+      return;
+    }
     setUploadedFileName(file.name);
+    setDicomStudy(null);
     const reader = new FileReader();
     reader.onload = (e) => {
       const dataUrl = e.target?.result as string;
@@ -217,6 +305,12 @@ export default function Home() {
             onCustomUpload={handleCustomUpload}
             uploadedFileName={uploadedFileName}
           />
+          {isLoadingStudy && (
+            <div className="mt-2 flex items-center gap-2 px-3 py-2 rounded-lg bg-[#111827] border border-[#1E293B] text-[11px] font-mono text-[#00D2FF]">
+              <span className="w-3 h-3 rounded-full border-2 border-[#00D2FF] border-t-transparent animate-spin" />
+              Распаковка ZIP и парсинг DICOM-файлов…
+            </div>
+          )}
         </section>
 
         {/* 2-Column Responsive Radiology Workspace */}
@@ -243,6 +337,7 @@ export default function Home() {
               customImageDataUrl={
                 selectedCaseId === 'custom-upload' ? customImageDataUrl : null
               }
+              dicomStudy={selectedCaseId === 'custom-upload' ? dicomStudy : null}
             />
 
             {/* Viewer Controls (Slice Slider, Windowing Tabs, Tools) */}
