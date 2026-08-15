@@ -46,3 +46,5 @@ app.*.map.json
 
 # build is a symlink to ~/Library/Caches (iCloud breaks codesign inside Documents)
 build
+.dart_tool
+.dart_tool.nosync/

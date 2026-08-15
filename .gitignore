@@ -8,3 +8,4 @@ coverage/
 !.env.example
 .next.nosync/
 tsconfig.tsbuildinfo
+node_modules
