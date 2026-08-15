@@ -65,6 +65,7 @@ const SERIES = [
 
 export default function LandingPage() {
   const [status, setStatus] = React.useState<SubmitStatus>('idle');
+  const [serverError, setServerError] = React.useState<string | null>(null);
   const [lang, setLang] = React.useState<Lang>('ru');
   const [theme, setTheme] = React.useState<Theme>('dark');
   const t = T[lang];
@@ -238,6 +239,7 @@ export default function LandingPage() {
       (form.elements.namedItem(name) as HTMLInputElement | HTMLTextAreaElement | null)?.value.trim() ?? '';
 
     setStatus('sending');
+    setServerError(null);
     try {
       const res = await fetch('/api/demo-request', {
         method: 'POST',
@@ -250,7 +252,11 @@ export default function LandingPage() {
           msg: v('msg'),
         }),
       });
-      if (!res.ok) throw new Error('request failed');
+      if (!res.ok) {
+        const body = (await res.json().catch(() => null)) as { error?: string } | null;
+        setServerError(body?.error ?? null);
+        throw new Error('request failed');
+      }
       setStatus('ok');
       form.reset();
     } catch {
@@ -636,7 +642,7 @@ export default function LandingPage() {
                     {status === 'sending' ? t.demo.form.sending : t.demo.form.submit}
                   </button>
                   {status === 'error' ? (
-                    <p className="form-note form-note-err">{t.demo.form.err}</p>
+                    <p className="form-note form-note-err">{serverError ?? t.demo.form.err}</p>
                   ) : (
                     <p className="form-note">{t.demo.form.note}</p>
                   )}

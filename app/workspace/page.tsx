@@ -6,7 +6,7 @@ import { CaseData, WindowPreset, SignatureData } from '@/lib/types';
 import { DicomStudy, loadStudyFromZip, StudyLoadError } from '@/lib/dicom/study';
 import { AttentionRegion, analyzeStudyAttention } from '@/lib/dicom/analyze';
 import { analyzeViaService, checkAiService } from '@/lib/dicom/aiClient';
-import { FullscreenViewer } from '@/components/FullscreenViewer';
+import dynamic from 'next/dynamic';
 import { Header } from '@/components/Header';
 import { CaseSelector } from '@/components/CaseSelector';
 import { DicomViewer } from '@/components/DicomViewer';
@@ -17,6 +17,13 @@ import { ReportEditor } from '@/components/ReportEditor';
 import { ActionBar } from '@/components/ActionBar';
 import { PrintReportTemplate } from '@/components/PrintReportTemplate';
 import { Toast } from '@/components/Toast';
+
+// Fullscreen reading mode is only needed after a real study is uploaded —
+// load it lazily to keep it out of the initial workspace bundle.
+const FullscreenViewer = dynamic(
+  () => import('@/components/FullscreenViewer').then((m) => m.FullscreenViewer),
+  { ssr: false },
+);
 
 export default function Home() {
   const [cases] = useState<CaseData[]>(MOCK_CASES);

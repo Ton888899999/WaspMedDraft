@@ -61,6 +61,7 @@ export const FullscreenViewer: React.FC<FullscreenViewerProps> = ({
   const [isCine, setIsCine] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const dragRef = useRef<{ x: number; y: number } | null>(null);
+  const pinchRef = useRef<{ dist: number; zoom: number } | null>(null);
   const totalSlices = study.slices.length;
   const slice = study.slices[Math.max(0, currentSlice - 1)];
   const regionsOnSlice = regions.filter((r) => Math.abs(r.sliceNumber - currentSlice) <= 2);
@@ -150,7 +151,41 @@ export const FullscreenViewer: React.FC<FullscreenViewerProps> = ({
   };
   const endDrag = () => {
     dragRef.current = null;
+    pinchRef.current = null;
     setIsDragging(false);
+  };
+
+  // Touch: one finger — pan, two fingers — pinch zoom.
+  const touchDistance = (touches: React.TouchList) =>
+    Math.hypot(
+      touches[0].clientX - touches[1].clientX,
+      touches[0].clientY - touches[1].clientY,
+    );
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (e.touches.length === 2) {
+      dragRef.current = null;
+      setIsDragging(false);
+      pinchRef.current = { dist: touchDistance(e.touches), zoom };
+    } else if (e.touches.length === 1) {
+      dragRef.current = {
+        x: e.touches[0].clientX - pan.x,
+        y: e.touches[0].clientY - pan.y,
+      };
+      setIsDragging(true);
+    }
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (e.touches.length === 2 && pinchRef.current) {
+      const ratio = touchDistance(e.touches) / pinchRef.current.dist;
+      setZoom(Math.min(10, Math.max(0.25, pinchRef.current.zoom * ratio)));
+    } else if (e.touches.length === 1 && dragRef.current) {
+      setPan({
+        x: e.touches[0].clientX - dragRef.current.x,
+        y: e.touches[0].clientY - dragRef.current.y,
+      });
+    }
   };
 
   return (
@@ -180,7 +215,7 @@ export const FullscreenViewer: React.FC<FullscreenViewerProps> = ({
 
       {/* Canvas area */}
       <div
-        className={`relative flex-1 overflow-hidden flex items-center justify-center ${
+        className={`relative flex-1 overflow-hidden flex items-center justify-center touch-none ${
           isDragging ? 'cursor-grabbing' : 'cursor-grab'
         }`}
         onWheel={handleWheel}
@@ -188,6 +223,9 @@ export const FullscreenViewer: React.FC<FullscreenViewerProps> = ({
         onMouseMove={handleMouseMove}
         onMouseUp={endDrag}
         onMouseLeave={endDrag}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={endDrag}
         onDoubleClick={resetView}
       >
         <div
@@ -228,7 +266,7 @@ export const FullscreenViewer: React.FC<FullscreenViewerProps> = ({
       </div>
 
       {/* Footer controls */}
-      <div className="px-4 py-2.5 bg-[#0B0F17] border-t border-[#1E293B] flex items-center gap-3 flex-wrap">
+      <div className="px-3 sm:px-4 pt-2.5 pb-[max(0.625rem,env(safe-area-inset-bottom))] bg-[#0B0F17] border-t border-[#1E293B] flex items-center gap-2 sm:gap-3 flex-wrap">
         <button
           onClick={() => setIsCine(!isCine)}
           className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[10px] font-bold transition-colors ${

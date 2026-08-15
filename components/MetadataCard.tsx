@@ -11,12 +11,12 @@ interface MetadataCardProps {
 export const MetadataCard: React.FC<MetadataCardProps> = ({ currentCase }) => {
   return (
     <div className="p-3 rounded-xl bg-[#111827] border border-[#1E293B] flex flex-col gap-2.5">
-      <div className="flex items-center justify-between border-b border-[#1E293B] pb-1.5">
-        <div className="flex items-center gap-1.5 text-xs font-mono font-bold text-[#E5E7EB]">
-          <FileText className="w-3.5 h-3.5 text-blue-400" />
-          <span>DICOM Metadata & Acquisition Parameters</span>
+      <div className="flex items-center justify-between flex-wrap gap-1 border-b border-[#1E293B] pb-1.5">
+        <div className="flex items-center gap-1.5 text-xs font-mono font-bold text-[#E5E7EB] min-w-0">
+          <FileText className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+          <span className="truncate">DICOM Metadata & Acquisition Parameters</span>
         </div>
-        <span className="text-[10px] font-mono text-[#64748B] bg-slate-900 px-1.5 py-0.5 rounded border border-slate-800">
+        <span className="hidden md:inline text-[10px] font-mono text-[#64748B] bg-slate-900 px-1.5 py-0.5 rounded border border-slate-800">
           UID: 1.2.840.10008.5.1.4.1.1
         </span>
       </div>

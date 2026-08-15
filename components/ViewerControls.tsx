@@ -92,17 +92,17 @@ export const ViewerControls: React.FC<ViewerControlsProps> = ({
             </button>
             <button
               onClick={() => onSliceChange(Math.max(1, currentSlice - 1))}
-              className="p-1 rounded-md bg-[#1E293B] hover:bg-[#334155] text-[#94A3B8] hover:text-white transition-colors"
+              className="p-2 sm:p-1 rounded-md bg-[#1E293B] hover:bg-[#334155] text-[#94A3B8] hover:text-white transition-colors"
               title="Предыдущий срез"
             >
-              <ChevronLeft className="w-3.5 h-3.5" />
+              <ChevronLeft className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
             </button>
             <button
               onClick={() => onSliceChange(Math.min(totalSlices, currentSlice + 1))}
-              className="p-1 rounded-md bg-[#1E293B] hover:bg-[#334155] text-[#94A3B8] hover:text-white transition-colors"
+              className="p-2 sm:p-1 rounded-md bg-[#1E293B] hover:bg-[#334155] text-[#94A3B8] hover:text-white transition-colors"
               title="Следующий срез"
             >
-              <ChevronRight className="w-3.5 h-3.5" />
+              <ChevronRight className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
             </button>
           </div>
         </div>
@@ -115,7 +115,7 @@ export const ViewerControls: React.FC<ViewerControlsProps> = ({
             max={totalSlices}
             value={currentSlice}
             onChange={(e) => onSliceChange(Number(e.target.value))}
-            className="w-full h-1.5 bg-[#1E293B] rounded-full appearance-none cursor-pointer accent-[#0066FF] focus:outline-none"
+            className="w-full h-2.5 sm:h-1.5 bg-[#1E293B] rounded-full appearance-none cursor-pointer accent-[#0066FF] focus:outline-none touch-none"
           />
         </div>
       </div>
@@ -162,7 +162,7 @@ export const ViewerControls: React.FC<ViewerControlsProps> = ({
         <div className="flex items-center gap-1.5 text-[#94A3B8]">
           <button
             onClick={handleZoomIn}
-            className="p-1.5 bg-[#1E293B] rounded-md hover:text-white transition-colors"
+            className="p-2.5 sm:p-1.5 bg-[#1E293B] rounded-md hover:text-white transition-colors"
             title="Увеличить (Zoom In)"
           >
             <ZoomIn className="w-4 h-4" />
@@ -170,7 +170,7 @@ export const ViewerControls: React.FC<ViewerControlsProps> = ({
 
           <button
             onClick={handleZoomOut}
-            className="p-1.5 bg-[#1E293B] rounded-md hover:text-white transition-colors"
+            className="p-2.5 sm:p-1.5 bg-[#1E293B] rounded-md hover:text-white transition-colors"
             title="Уменьшить (Zoom Out)"
           >
             <ZoomOut className="w-4 h-4" />
@@ -178,7 +178,7 @@ export const ViewerControls: React.FC<ViewerControlsProps> = ({
 
           <button
             onClick={handleRotate}
-            className="p-1.5 bg-[#1E293B] rounded-md hover:text-white transition-colors"
+            className="p-2.5 sm:p-1.5 bg-[#1E293B] rounded-md hover:text-white transition-colors"
             title="Поворот 90°"
           >
             <RotateCw className="w-4 h-4" />
@@ -186,7 +186,7 @@ export const ViewerControls: React.FC<ViewerControlsProps> = ({
 
           <button
             onClick={onToggleInvert}
-            className={`p-1.5 rounded-md transition-colors ${
+            className={`p-2.5 sm:p-1.5 rounded-md transition-colors ${
               isInverted
                 ? 'bg-[#0066FF]/20 text-[#00D2FF] border border-[#0066FF]/40'
                 : 'bg-[#1E293B] hover:text-white'
@@ -198,7 +198,7 @@ export const ViewerControls: React.FC<ViewerControlsProps> = ({
 
           <button
             onClick={onResetView}
-            className="p-1.5 bg-[#1E293B] rounded-md hover:text-amber-400 transition-colors"
+            className="p-2.5 sm:p-1.5 bg-[#1E293B] rounded-md hover:text-amber-400 transition-colors"
             title="Сброс"
           >
             <RefreshCw className="w-4 h-4" />

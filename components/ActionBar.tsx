@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useState } from 'react';
-import confetti from 'canvas-confetti';
 import {
   PenLine,
   CheckCircle,
@@ -39,17 +38,18 @@ export const ActionBar: React.FC<ActionBarProps> = ({
 
   const handleSign = () => {
     if (!signatureData.isSigned) {
-      // Trigger confetti celebration
-      try {
-        confetti({
-          particleCount: 80,
-          spread: 60,
-          origin: { y: 0.8 },
-          colors: ['#0066FF', '#00D2FF', '#10B981', '#ffffff'],
-        });
-      } catch {
-        // fallback
-      }
+      // Confetti is loaded on demand — it's purely decorative and must not
+      // block signing or weigh down the initial bundle.
+      import('canvas-confetti')
+        .then(({ default: confetti }) =>
+          confetti({
+            particleCount: 80,
+            spread: 60,
+            origin: { y: 0.8 },
+            colors: ['#0066FF', '#00D2FF', '#10B981', '#ffffff'],
+          }),
+        )
+        .catch(() => {});
       onSign();
       onShowToast('Протокол успешно подписан ЭЦП врача-рентгенолога!');
     }

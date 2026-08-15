@@ -35,6 +35,7 @@ export const DicomViewer: React.FC<DicomViewerProps> = ({
   isAiGenerated,
   showAiOverlay,
   onToggleAiOverlay,
+  onSliceChange,
   customImageDataUrl,
   dicomStudy,
   attentionRegions = [],
@@ -42,6 +43,7 @@ export const DicomViewer: React.FC<DicomViewerProps> = ({
 }) => {
   const [crosshairPos, setCrosshairPos] = useState<{ x: number; y: number; hu: number } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const touchRef = useRef<{ x: number; slice: number } | null>(null);
 
   // Calculate slice offset factor for anatomical slice variation
   const sliceRatio = (currentSlice - 1) / Math.max(1, currentCase.totalSlices - 1);
@@ -96,7 +98,9 @@ export const DicomViewer: React.FC<DicomViewerProps> = ({
   };
 
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!containerRef.current) return;
+    // Real DICOM data hides the simulated HU cursor HUD — skip the
+    // state update entirely so hover doesn't re-render the viewer.
+    if (dicomStudy || !containerRef.current) return;
     const rect = containerRef.current.getBoundingClientRect();
     const x = Math.round(e.clientX - rect.left);
     const y = Math.round(e.clientY - rect.top);
@@ -109,15 +113,35 @@ export const DicomViewer: React.FC<DicomViewerProps> = ({
     setCrosshairPos(null);
   };
 
+  // Touch scrubbing on phones/tablets: horizontal swipe over the image
+  // scrolls through the series (~1 slice per 14px), like a PACS scrub bar.
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (e.touches.length !== 1) {
+      touchRef.current = null;
+      return;
+    }
+    touchRef.current = { x: e.touches[0].clientX, slice: currentSlice };
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!touchRef.current || !onSliceChange || e.touches.length !== 1) return;
+    const deltaSlices = Math.round((e.touches[0].clientX - touchRef.current.x) / 14);
+    const next = Math.min(
+      currentCase.totalSlices,
+      Math.max(1, touchRef.current.slice + deltaSlices),
+    );
+    if (next !== currentSlice) onSliceChange(next);
+  };
+
   return (
     <div className="relative flex flex-col rounded-xl overflow-hidden border border-[#1E293B] bg-black shadow-2xl select-none">
       {/* Top Bar inside Viewer */}
-      <div className="flex items-center justify-between px-3 py-1.5 bg-[#0B0F17]/90 border-b border-[#1E293B]/80 text-[11px] font-mono text-[#94A3B8] z-20">
-        <div className="flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
-          <span className="text-[#E5E7EB] font-semibold">{currentCase.modality}</span>
-          <span className="text-[#64748B]">·</span>
-          <span>{currentCase.bodyPart}</span>
+      <div className="flex items-center justify-between flex-wrap gap-y-1 px-3 py-1.5 bg-[#0B0F17]/90 border-b border-[#1E293B]/80 text-[11px] font-mono text-[#94A3B8] z-20">
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0"></span>
+          <span className="text-[#E5E7EB] font-semibold truncate">{currentCase.modality}</span>
+          <span className="text-[#64748B] hidden sm:inline">·</span>
+          <span className="hidden sm:inline truncate">{currentCase.bodyPart}</span>
         </div>
         <div className="flex items-center gap-2">
           {dicomStudy && (
@@ -158,7 +182,7 @@ export const DicomViewer: React.FC<DicomViewerProps> = ({
               <span>AI ROI {showAiOverlay ? 'ON' : 'OFF'}</span>
             </button>
           )}
-          <span className="text-emerald-400 font-bold bg-emerald-950/60 px-1.5 py-0.5 rounded border border-emerald-500/30">
+          <span className="hidden min-[420px]:inline text-emerald-400 font-bold bg-emerald-950/60 px-1.5 py-0.5 rounded border border-emerald-500/30">
             DICOM 3.0
           </span>
         </div>
@@ -169,7 +193,9 @@ export const DicomViewer: React.FC<DicomViewerProps> = ({
         ref={containerRef}
         onMouseMove={handleMouseMove}
         onMouseLeave={handleMouseLeave}
-        className="relative w-full aspect-[4/3] sm:aspect-square max-h-[460px] bg-[#030712] overflow-hidden flex items-center justify-center cursor-crosshair group"
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        className="relative w-full aspect-square max-h-[70vh] sm:max-h-[460px] bg-[#030712] overflow-hidden flex items-center justify-center cursor-crosshair group touch-pan-y"
       >
         {/* Phosphor Grid Background */}
         <div className="absolute inset-0 bg-[radial-gradient(#1e293b_1px,transparent_1px)] [background-size:24px_24px] opacity-20 pointer-events-none" />

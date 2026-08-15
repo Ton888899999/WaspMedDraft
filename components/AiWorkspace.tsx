@@ -49,12 +49,15 @@ export const AiWorkspace: React.FC<AiWorkspaceProps> = ({
       {!isGenerated && !isGenerating ? (
         <button
           onClick={onGenerate}
-          className="w-full py-4 rounded-xl bg-gradient-to-r from-[#0066FF] to-[#00D2FF] text-white font-bold text-xs sm:text-sm shadow-[0_4px_20px_rgba(0,102,255,0.3)] flex items-center justify-center gap-2.5 hover:scale-[1.01] transition-transform active:scale-95 cursor-pointer"
+          className="w-full py-4 px-3 rounded-xl bg-gradient-to-r from-[#0066FF] to-[#00D2FF] text-white font-bold text-xs sm:text-sm shadow-[0_4px_20px_rgba(0,102,255,0.3)] flex items-center justify-center gap-2.5 hover:scale-[1.01] transition-transform active:scale-95 cursor-pointer"
         >
-          <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className="w-5 h-5 text-white shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-7.714 2.143L11 21l-2.286-6.857L1 12l7.714-2.143L11 3z" />
           </svg>
-          <span className="tracking-wide">СГЕНЕРИРОВАТЬ ЧЕРНОВИК ПРОТОКОЛА (AI DRAFT)</span>
+          <span className="tracking-wide text-center leading-snug">
+            <span className="sm:hidden">СГЕНЕРИРОВАТЬ ЧЕРНОВИК (AI)</span>
+            <span className="hidden sm:inline">СГЕНЕРИРОВАТЬ ЧЕРНОВИК ПРОТОКОЛА (AI DRAFT)</span>
+          </span>
         </button>
       ) : null}
 

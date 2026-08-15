@@ -1,4 +1,4 @@
-import JSZip from 'jszip';
+import type JSZipType from 'jszip';
 import { DicomTag, parseDicom } from './parser';
 
 /** One parsed DICOM slice, ready for windowed rendering. */
@@ -40,7 +40,9 @@ export class StudyLoadError extends Error {}
 
 /** Extracts a ZIP archive in the browser and parses every DICOM file inside. */
 export async function loadStudyFromZip(file: File): Promise<DicomStudy> {
-  let zip: JSZip;
+  // jszip is loaded on demand so it stays out of the initial page bundle.
+  const { default: JSZip } = await import('jszip');
+  let zip: JSZipType;
   try {
     zip = await JSZip.loadAsync(await file.arrayBuffer());
   } catch {

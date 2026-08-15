@@ -36,15 +36,25 @@ export async function POST(req: Request) {
     `💬 Комментарий: ${(data.msg || '—').trim() || '—'}`,
   ].join('\n');
 
-  const tgRes = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ chat_id: chatId, text }),
-  });
-
-  if (!tgRes.ok) {
+  try {
+    const tgRes = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat_id: chatId, text }),
+      signal: AbortSignal.timeout(9000),
+      cache: 'no-store',
+    });
+    if (!tgRes.ok) {
+      console.error('demo-request: Telegram API error', tgRes.status, await tgRes.text());
+      return NextResponse.json(
+        { ok: false, error: 'Не удалось отправить заявку, попробуйте ещё раз' },
+        { status: 502 },
+      );
+    }
+  } catch (err) {
+    console.error('demo-request: Telegram fetch failed', err);
     return NextResponse.json(
-      { ok: false, error: 'Не удалось отправить заявку, попробуйте ещё раз' },
+      { ok: false, error: 'Сервис уведомлений не ответил, попробуйте ещё раз' },
       { status: 502 },
     );
   }
