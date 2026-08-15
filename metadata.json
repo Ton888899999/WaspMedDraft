@@ -1,0 +1,6 @@
+{
+  "name": "WaspMed Draft — AI Co-pilot для радиологов",
+  "description": "Интеллектуальный ассистент врача-рентгенолога для автоматизированного анализа МРТ/КТ снимков и генерации клинических протоколов",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
