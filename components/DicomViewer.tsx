@@ -4,6 +4,7 @@ import React, { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { CaseData, WindowPreset } from '@/lib/types';
 import { DicomStudy } from '@/lib/dicom/study';
+import { AttentionRegion } from '@/lib/dicom/analyze';
 import { DicomSliceCanvas } from '@/components/DicomSliceCanvas';
 import { Eye, EyeOff, Maximize2, Sparkles, Target, ScanLine } from 'lucide-react';
 
@@ -20,6 +21,8 @@ interface DicomViewerProps {
   onSliceChange?: (slice: number) => void;
   customImageDataUrl?: string | null;
   dicomStudy?: DicomStudy | null;
+  attentionRegions?: AttentionRegion[];
+  onOpenFullscreen?: () => void;
 }
 
 export const DicomViewer: React.FC<DicomViewerProps> = ({
@@ -34,6 +37,8 @@ export const DicomViewer: React.FC<DicomViewerProps> = ({
   onToggleAiOverlay,
   customImageDataUrl,
   dicomStudy,
+  attentionRegions = [],
+  onOpenFullscreen,
 }) => {
   const [crosshairPos, setCrosshairPos] = useState<{ x: number; y: number; hu: number } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -115,6 +120,30 @@ export const DicomViewer: React.FC<DicomViewerProps> = ({
           <span>{currentCase.bodyPart}</span>
         </div>
         <div className="flex items-center gap-2">
+          {dicomStudy && (
+            <button
+              onClick={onOpenFullscreen}
+              className="flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono bg-[#1E293B] text-[#94A3B8] border border-slate-700 hover:text-white hover:border-[#0066FF] transition-colors"
+              title="Полноэкранный режим чтения (зум, панорама, кинопетля)"
+            >
+              <Maximize2 className="w-3 h-3" />
+              <span>FULLSCREEN</span>
+            </button>
+          )}
+          {isAiGenerated && dicomStudy && attentionRegions.length > 0 && (
+            <button
+              onClick={onToggleAiOverlay}
+              className={`flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono transition-colors ${
+                showAiOverlay
+                  ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40'
+                  : 'bg-slate-800 text-slate-400 border border-slate-700'
+              }`}
+              title="Показать/скрыть зоны внимания AI"
+            >
+              {showAiOverlay ? <Eye className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />}
+              <span>AI ROI {showAiOverlay ? 'ON' : 'OFF'}</span>
+            </button>
+          )}
           {isAiGenerated && currentCase.annotation && (
             <button
               onClick={onToggleAiOverlay}
@@ -161,6 +190,8 @@ export const DicomViewer: React.FC<DicomViewerProps> = ({
                 sliceIndex={Math.max(0, currentSlice - 1)}
                 windowPreset={windowPreset}
                 isInverted={isInverted}
+                regions={isAiGenerated ? attentionRegions : []}
+                showRegions={showAiOverlay}
               />
             </div>
           ) : customImageDataUrl ? (

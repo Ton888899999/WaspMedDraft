@@ -3,6 +3,7 @@
 import React, { useEffect, useRef } from 'react';
 import { WindowPreset } from '@/lib/types';
 import { DicomStudy } from '@/lib/dicom/study';
+import { AttentionRegion } from '@/lib/dicom/analyze';
 import { renderSliceToImageData } from '@/lib/dicom/render';
 
 interface DicomSliceCanvasProps {
@@ -10,6 +11,9 @@ interface DicomSliceCanvasProps {
   sliceIndex: number; // 0-based
   windowPreset: WindowPreset;
   isInverted: boolean;
+  regions?: AttentionRegion[];
+  showRegions?: boolean;
+  className?: string;
 }
 
 /** Draws a real DICOM slice with window/level applied to the raw pixel data. */
@@ -18,9 +22,16 @@ export const DicomSliceCanvas: React.FC<DicomSliceCanvasProps> = ({
   sliceIndex,
   windowPreset,
   isInverted,
+  regions = [],
+  showRegions = true,
+  className,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const slice = study.slices[Math.min(sliceIndex, study.slices.length - 1)];
+  const sliceNumber = sliceIndex + 1;
+  const activeRegions = showRegions
+    ? regions.filter((r) => Math.abs(r.sliceNumber - sliceNumber) <= 2)
+    : [];
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -36,7 +47,45 @@ export const DicomSliceCanvas: React.FC<DicomSliceCanvasProps> = ({
       study.modality.toUpperCase() === 'CT',
     );
     ctx.putImageData(imageData, 0, 0);
-  }, [slice, windowPreset, isInverted, study.modality]);
+
+    // Attention-region markers: dashed ellipse + crosshair + label,
+    // drawn in image coordinates so they zoom together with the slice.
+    for (const r of activeRegions) {
+      const cx = (r.cx / 100) * slice.columns;
+      const cy = (r.cy / 100) * slice.rows;
+      const rx = (r.rx / 100) * slice.columns;
+      const ry = (r.ry / 100) * slice.rows;
+      const lw = Math.max(1.5, slice.columns / 320);
+
+      ctx.save();
+      ctx.strokeStyle = 'rgba(251, 191, 36, 0.95)';
+      ctx.lineWidth = lw;
+      ctx.setLineDash([6 * lw, 4 * lw]);
+      ctx.beginPath();
+      ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
+      ctx.stroke();
+
+      ctx.setLineDash([]);
+      ctx.beginPath();
+      ctx.moveTo(cx - rx * 0.25, cy);
+      ctx.lineTo(cx + rx * 0.25, cy);
+      ctx.moveTo(cx, cy - ry * 0.25);
+      ctx.lineTo(cx, cy + ry * 0.25);
+      ctx.stroke();
+
+      const fontPx = Math.max(11, Math.round(slice.columns / 42));
+      ctx.font = `${fontPx}px ui-monospace, monospace`;
+      const text = r.label;
+      const tw = ctx.measureText(text).width;
+      const tx = Math.min(Math.max(cx - tw / 2, 4), slice.columns - tw - 4);
+      const ty = Math.max(cy - ry - fontPx * 0.7, fontPx + 4);
+      ctx.fillStyle = 'rgba(11, 15, 23, 0.82)';
+      ctx.fillRect(tx - 4, ty - fontPx, tw + 8, fontPx + 6);
+      ctx.fillStyle = 'rgba(251, 191, 36, 1)';
+      ctx.fillText(text, tx, ty);
+      ctx.restore();
+    }
+  }, [slice, windowPreset, isInverted, study.modality, activeRegions]);
 
   if (!slice) return null;
 
@@ -52,7 +101,7 @@ export const DicomSliceCanvas: React.FC<DicomSliceCanvasProps> = ({
   return (
     <canvas
       ref={canvasRef}
-      className="max-w-full max-h-full object-contain"
+      className={className ?? 'max-w-full max-h-full object-contain'}
       style={{ imageRendering: 'auto' }}
     />
   );

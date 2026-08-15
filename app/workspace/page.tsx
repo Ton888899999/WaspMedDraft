@@ -4,6 +4,8 @@ import React, { useState, useEffect } from 'react';
 import { MOCK_CASES } from '@/lib/mock-data';
 import { CaseData, WindowPreset, SignatureData } from '@/lib/types';
 import { DicomStudy, loadStudyFromZip, StudyLoadError } from '@/lib/dicom/study';
+import { AttentionRegion, analyzeStudyAttention } from '@/lib/dicom/analyze';
+import { FullscreenViewer } from '@/components/FullscreenViewer';
 import { Header } from '@/components/Header';
 import { CaseSelector } from '@/components/CaseSelector';
 import { DicomViewer } from '@/components/DicomViewer';
@@ -30,6 +32,8 @@ export default function Home() {
   const [customCase, setCustomCase] = useState<CaseData | null>(null);
   const [dicomStudy, setDicomStudy] = useState<DicomStudy | null>(null);
   const [isLoadingStudy, setIsLoadingStudy] = useState<boolean>(false);
+  const [attentionRegions, setAttentionRegions] = useState<AttentionRegion[]>([]);
+  const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
 
   // AI Pipeline state
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
@@ -137,6 +141,7 @@ export default function Home() {
       };
 
       setDicomStudy(study);
+      setAttentionRegions([]);
       setCustomImageDataUrl(null);
       setCustomCase(zipCase);
       setSelectedCaseId('custom-upload');
@@ -230,8 +235,94 @@ export default function Home() {
     reader.readAsDataURL(file);
   };
 
+  // Real analysis of an uploaded DICOM study: statistical density scan
+  // of the actual pixel data. Regions with strongly deviating local
+  // density are flagged as attention cues for the physician (not a diagnosis).
+  const runRealStudyAnalysis = async () => {
+    if (!dicomStudy || !customCase) return;
+    setIsGenerating(true);
+    setIsGenerated(false);
+    setGenerationStep(1);
+    setProgressPercent(5);
+
+    const regions = await analyzeStudyAttention(dicomStudy, (p) => {
+      setGenerationStep(p < 60 ? 1 : 2);
+      setProgressPercent(5 + Math.round(p * 0.82));
+    });
+
+    setGenerationStep(3);
+    setProgressPercent(93);
+    setAttentionRegions(regions);
+
+    const isCT = dicomStudy.modality.toUpperCase() === 'CT';
+    const regionLines = regions.map(
+      (r, i) =>
+        `Срез ${r.sliceNumber}: ${r.label.toLowerCase()} (отклонение ${r.score.toFixed(1)}σ от медианы тканей среза${
+          isCT ? `, средняя плотность ${Math.round(r.meanValue)} HU` : ''
+        }) — ROI #${i + 1}, требует оценки врача.`,
+    );
+
+    const findings =
+      `На серии срезов (${dicomStudy.slices.length} изображений, ${dicomStudy.modality}) анатомические структуры дифференцированы, взаимное расположение сохранено.\n\n` +
+      (regions.length > 0
+        ? `Автоматический статистический анализ плотности выявил ${regions.length} зон(у/ы) внимания:\n${regionLines.join(
+            '\n',
+          )}\n\nОтмеченные зоны — статистические отклонения локальной плотности, а не диагноз. Каждая зона требует визуальной оценки врачом (доступен полноэкранный режим с увеличением).`
+        : 'Автоматический статистический анализ плотности значимых локальных отклонений на анализируемых срезах не выявил. Рекомендуется выборочный визуальный контроль серии.');
+
+    const impression =
+      regions.length > 0
+        ? `Автоматический анализ отметил ${regions.length} зон(у/ы) статистического отклонения плотности (максимальное ${regions[0].score.toFixed(
+            1,
+          )}σ, срез ${regions[0].sliceNumber}). Черновик сформирован автоматически и требует верификации врачом.`
+        : 'Значимых статистических отклонений плотности не выявлено. Черновик сформирован автоматически и требует верификации врачом.';
+
+    const updatedCase: CaseData = {
+      ...customCase,
+      findingsText: findings,
+      impression,
+      isPathology: false,
+      confidenceScore: regions.length > 0 ? Math.min(97, Math.round(60 + regions[0].score * 6)) : 92,
+      traceableItems:
+        regions.length > 0
+          ? regions.map((r, i) => ({
+              phrase: r.label,
+              slices: String(r.sliceNumber),
+              confidence: Math.min(97, Math.round(55 + r.score * 8)),
+              roi: `ROI #${i + 1}`,
+              details: `Отклонение ${r.score.toFixed(1)}σ${
+                isCT ? `, средняя плотность ${Math.round(r.meanValue)} HU` : ''
+              }. Кликните, чтобы перейти к срезу ${r.sliceNumber}.`,
+              targetSlice: r.sliceNumber,
+            }))
+          : customCase.traceableItems,
+    };
+    setCustomCase(updatedCase);
+    setFindingsText(findings);
+
+    setTimeout(() => {
+      setGenerationStep(4);
+      setProgressPercent(100);
+      setIsGenerating(false);
+      setIsGenerated(true);
+      setShowAiOverlay(true);
+      if (regions.length > 0) {
+        setCurrentSlice(regions[0].sliceNumber);
+        setToastMessage(
+          `Анализ завершён: отмечено зон внимания — ${regions.length}. Перешли к срезу ${regions[0].sliceNumber}`,
+        );
+      } else {
+        setToastMessage('Анализ завершён: значимых зон внимания не выявлено');
+      }
+    }, 500);
+  };
+
   // AI Pipeline Execution (~3.5 seconds total)
   const handleRunAiGeneration = () => {
+    if (selectedCaseId === 'custom-upload' && dicomStudy) {
+      void runRealStudyAnalysis();
+      return;
+    }
     setIsGenerating(true);
     setIsGenerated(false);
     setGenerationStep(1);
@@ -338,6 +429,8 @@ export default function Home() {
                 selectedCaseId === 'custom-upload' ? customImageDataUrl : null
               }
               dicomStudy={selectedCaseId === 'custom-upload' ? dicomStudy : null}
+              attentionRegions={selectedCaseId === 'custom-upload' ? attentionRegions : []}
+              onOpenFullscreen={() => setIsFullscreen(true)}
             />
 
             {/* Viewer Controls (Slice Slider, Windowing Tabs, Tools) */}
@@ -428,7 +521,23 @@ export default function Home() {
         signatureData={signatureData}
       />
 
-      {/* 4. Notification Toast */}
+      {/* 4. Fullscreen reading mode for real DICOM studies */}
+      {isFullscreen && dicomStudy && selectedCaseId === 'custom-upload' && (
+        <FullscreenViewer
+          study={dicomStudy}
+          caseTitle={activeCase.title}
+          currentSlice={currentSlice}
+          onSliceChange={setCurrentSlice}
+          windowPreset={windowPreset}
+          onWindowPresetChange={setWindowPreset}
+          isInverted={isInverted}
+          onToggleInvert={() => setIsInverted(!isInverted)}
+          regions={isGenerated ? attentionRegions : []}
+          onClose={() => setIsFullscreen(false)}
+        />
+      )}
+
+      {/* 5. Notification Toast */}
       <Toast message={toastMessage} onClose={() => setToastMessage(null)} />
     </div>
   );

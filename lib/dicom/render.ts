@@ -75,6 +75,10 @@ export function renderSliceToImageData(
   return new ImageData(out, w, h);
 }
 
+export function sliceGrayValues(slice: DicomSlice): Float32Array {
+  return grayValues(slice);
+}
+
 function grayValues(slice: DicomSlice): Float32Array {
   const n = slice.rows * slice.columns;
   const result = new Float32Array(n);
