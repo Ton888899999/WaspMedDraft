@@ -19,7 +19,9 @@ const nextConfig: NextConfig = {
       },
     ],
   },
-  output: 'standalone',
+  outputFileTracingExcludes: {
+    '*': ['**/*'],
+  },
   transpilePackages: ['motion'],
 };
 

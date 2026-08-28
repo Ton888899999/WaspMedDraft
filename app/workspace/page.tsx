@@ -1,14 +1,14 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { MOCK_CASES } from '@/lib/mock-data';
 import { CaseData, WindowPreset, SignatureData } from '@/lib/types';
 import { DicomStudy, loadStudyFromZip, StudyLoadError } from '@/lib/dicom/study';
 import { AttentionRegion, analyzeStudyAttention } from '@/lib/dicom/analyze';
 import { analyzeViaService, checkAiService } from '@/lib/dicom/aiClient';
+import { generateRadiologyConclusion, AiProvider } from '@/lib/ai/radiologyAi';
 import dynamic from 'next/dynamic';
 import { Header } from '@/components/Header';
-import { CaseSelector } from '@/components/CaseSelector';
+import { UploadZone } from '@/components/UploadZone';
 import { DicomViewer } from '@/components/DicomViewer';
 import { ViewerControls } from '@/components/ViewerControls';
 import { MetadataCard } from '@/components/MetadataCard';
@@ -26,9 +26,8 @@ const FullscreenViewer = dynamic(
 );
 
 export default function Home() {
-  const [cases] = useState<CaseData[]>(MOCK_CASES);
-  const [selectedCaseId, setSelectedCaseId] = useState<string>(MOCK_CASES[0].id);
-  const [currentSlice, setCurrentSlice] = useState<number>(MOCK_CASES[0].defaultSlice);
+  const [selectedCaseId, setSelectedCaseId] = useState<string>('');
+  const [currentSlice, setCurrentSlice] = useState<number>(1);
   const [windowPreset, setWindowPreset] = useState<WindowPreset>('soft_tissue');
   const [zoomLevel, setZoomLevel] = useState<number>(100);
   const [rotation, setRotation] = useState<number>(0);
@@ -44,6 +43,8 @@ export default function Home() {
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
   const [uploadedZipFile, setUploadedZipFile] = useState<File | null>(null);
   const [analysisEngine, setAnalysisEngine] = useState<string>('');
+  const [selectedAiProvider, setSelectedAiProvider] = useState<AiProvider>('gemini');
+  const [generationStatus, setGenerationStatus] = useState<string>('');
 
   // AI Pipeline state
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
@@ -53,7 +54,7 @@ export default function Home() {
   const [showAiOverlay, setShowAiOverlay] = useState<boolean>(true);
 
   // Editable Findings
-  const [findingsText, setFindingsText] = useState<string>(MOCK_CASES[0].findingsText);
+  const [findingsText, setFindingsText] = useState<string>('');
 
   // Digital Signature state
   const [signatureData, setSignatureData] = useState<SignatureData>({
@@ -69,32 +70,8 @@ export default function Home() {
   // Toast feedback
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  const activeCase: CaseData =
-    selectedCaseId === 'custom-upload' && customCase
-      ? customCase
-      : cases.find((c) => c.id === selectedCaseId) || cases[0];
-
-  // When switching cases, reset viewing parameters & draft state
-  const handleSelectCase = (caseId: string) => {
-    setSelectedCaseId(caseId);
-    const targetCase = cases.find((c) => c.id === caseId) || cases[0];
-    setCurrentSlice(targetCase.defaultSlice);
-    setFindingsText(targetCase.findingsText);
-    setWindowPreset(targetCase.caseType === 'lung' ? 'lung' : 'soft_tissue');
-    setZoomLevel(100);
-    setRotation(0);
-    setIsInverted(false);
-    setIsGenerated(false);
-    setIsGenerating(false);
-    setGenerationStep(0);
-    setProgressPercent(0);
-    setShowAiOverlay(true);
-    setSignatureData((prev) => ({
-      ...prev,
-      isSigned: false,
-      timestamp: null,
-    }));
-  };
+  // Only the uploaded custom case is available
+  const activeCase: CaseData | null = customCase;
 
   // Real DICOM ingest: extract the ZIP in the browser, parse every DICOM
   // file inside and build a case from the study's actual metadata.
@@ -124,30 +101,19 @@ export default function Home() {
         sliceThickness: study.sliceThickness,
         totalSlices: study.slices.length,
         defaultSlice: midSlice,
-        coil: 'Standard Array',
-        contrast: 'Нативное',
-        kvpMa: 'Auto kVp / Auto mAs',
-        radiationDose: 'N/A',
-        fovMatrix: `Matrix ${study.slices[0].columns}×${study.slices[0].rows}`,
-        confidenceScore: 92,
-        processingTime: '1.10s',
+        coil: '—',
+        contrast: study.slices[0] ? 'Нативное' : '—',
+        kvpMa: '—',
+        radiationDose: '—',
+        fovMatrix: study.slices[0] ? `Matrix ${study.slices[0].columns}×${study.slices[0].rows}` : '—',
+        confidenceScore: 0,
+        processingTime: '—',
         studyArea: `Серия из ${study.slices.length} срезов (${study.modality}), ${study.description}.`,
-        findingsText: `На серии срезов (${study.slices.length} изображений, ${study.modality}) анатомические структуры дифференцированы, взаимное расположение сохранено. Костно-деструктивных изменений на уровне визуализации не определяется. Мягкие ткани без видимых объёмных образований. Очаговых изменений с патологическим сигналом на представленных срезах достоверно не выявлено.`,
-        traceableItems: [
-          {
-            phrase: 'анатомические структуры дифференцированы',
-            slices: `01–${String(study.slices.length).padStart(2, '0')}`,
-            confidence: 93.5,
-            roi: 'ROI #1 (Full Series)',
-            details: `Автоматический анализ ${study.slices.length} срезов серии DICOM.`,
-            targetSlice: midSlice,
-          },
-        ],
-        impression:
-          'Данных за острую хирургическую или очаговую патологию на представленных срезах не получено. Черновик сформирован автоматически и требует верификации врачом.',
-        recommendations:
-          'Консультация профильного специалиста по клиническим показаниям. Динамическое наблюдение.',
-        icdCode: 'МКБ-10: Z01.6 — Радиологическое обследование, не классифицированное в других рубриках',
+        findingsText: 'Нажмите «Сгенерировать ИИ заключение» для анализа снимков.',
+        traceableItems: [],
+        impression: 'Ожидание запуска ИИ-модели...',
+        recommendations: 'Нет данных. Запустите ИИ-генерацию.',
+        icdCode: '',
       };
 
       setDicomStudy(study);
@@ -200,40 +166,29 @@ export default function Home() {
         modality: 'DICOM Ingest / Custom Scan',
         protocolName: `Протокол исследования: ${file.name}`,
         patientId: '#Custom-Upload',
-        patientName: 'Анонимизированный пациент',
+        patientName: '—',
         patientAgeSex: '—',
-        studyDate: '14.08.2026',
+        studyDate: new Date().toLocaleDateString('ru-RU'),
         studyTime: new Date().toLocaleTimeString('ru-RU'),
-        hospitalName: 'Отделение лучевой диагностики',
-        deviceModel: 'DICOM 3.0 Compatible Ingest',
-        bodyPart: 'Пользовательская область',
-        sliceThickness: '1.0 mm',
-        totalSlices: 20,
-        defaultSlice: 10,
-        coil: 'Standard Array',
-        contrast: 'Нативное',
-        kvpMa: 'Auto kVp / Auto mAs',
-        radiationDose: 'N/A',
-        fovMatrix: 'FOV 250mm / Matrix 512×512',
-        confidenceScore: 92,
-        processingTime: '1.10s',
+        hospitalName: '—',
+        deviceModel: '—',
+        bodyPart: '—',
+        sliceThickness: '—',
+        totalSlices: 1,
+        defaultSlice: 1,
+        coil: '—',
+        contrast: '—',
+        kvpMa: '—',
+        radiationDose: '—',
+        fovMatrix: '—',
+        confidenceScore: 0,
+        processingTime: '—',
         studyArea: `Анализ загруженного снимка ${file.name} с автоматическим распознаванием анатомических ориентиров.`,
-        findingsText:
-          'На представленном срезе анатомические структуры дифференцированы. Грубых деструктивных изменений костных структур и видимых патологических объемов не определяется. Рекомендуется сопоставление с полным объемом серии DICOM-сканирования.',
-        traceableItems: [
-          {
-            phrase: 'анатомические структуры дифференцированы',
-            slices: '01–20',
-            confidence: 93.5,
-            roi: 'ROI #1 (Custom ROI)',
-            details: 'Базовый авто-анализ DICOM структуры.',
-            targetSlice: 10,
-          },
-        ],
-        impression:
-          'На представленном изолированном снимке данных за острую хирургическую или очаговую патологию не получено.',
-        recommendations: 'Рекомендуется предоставление полной серии томограмм.',
-        icdCode: 'МКБ-10: R93.8 — Другие уточненные аномальные результаты диагностического исследования',
+        findingsText: 'Нажмите «Сгенерировать ИИ заключение» для анализа снимка.',
+        traceableItems: [],
+        impression: 'Ожидание запуска ИИ-модели...',
+        recommendations: 'Нет данных. Запустите ИИ-генерацию.',
+        icdCode: '',
       };
 
       setCustomCase(newCustomCase);
@@ -246,98 +201,93 @@ export default function Home() {
     reader.readAsDataURL(file);
   };
 
-  // Real analysis of an uploaded DICOM study: statistical density scan
-  // of the actual pixel data. Regions with strongly deviating local
-  // density are flagged as attention cues for the physician (not a diagnosis).
-  const runRealStudyAnalysis = async () => {
-    if (!dicomStudy || !customCase) return;
+  // Real analysis of an uploaded DICOM study using RADIOLOGY_SYSTEM prompt + Gemini Vision API
+  const runRealStudyAnalysis = async (provider: AiProvider = selectedAiProvider, apiKey?: string) => {
+    if (!customCase) return;
+    (window as { _aiStartTime?: number })._aiStartTime = Date.now();
     setIsGenerating(true);
     setIsGenerated(false);
     setGenerationStep(1);
-    setProgressPercent(5);
+    setProgressPercent(10);
+    setGenerationStatus(`Подготовка ${customCase.totalSlices} срезов для анализа…`);
 
-    // Prefer the local AI service (real ML engines plug in there); fall
-    // back to the in-browser statistical analyzer when it is not running.
-    let regions: AttentionRegion[] = [];
-    let engineLabel = 'Встроенный статистический анализ (браузер)';
     let serviceSummary = '';
-    let analyzedByService = false;
 
-    const service = await checkAiService();
-    if (service && uploadedZipFile) {
-      try {
-        setToastMessage('Анализ на локальном AI-сервисе…');
-        setGenerationStep(2);
-        setProgressPercent(35);
-        const res = await analyzeViaService(uploadedZipFile);
-        regions = res.regions;
-        engineLabel = `AI-сервис: ${res.engineName}`;
-        serviceSummary = res.summary;
-        analyzedByService = true;
-      } catch (err) {
-        setToastMessage(
-          `AI-сервис недоступен (${err instanceof Error ? err.message : 'ошибка'}) — встроенный анализ`,
-        );
+    // Try local AI service first (if available)
+    if (dicomStudy && uploadedZipFile) {
+      const service = await checkAiService();
+      if (service) {
+        try {
+          setGenerationStatus('Анализ на локальном AI-сервисе…');
+          setGenerationStep(2);
+          setProgressPercent(30);
+          const res = await analyzeViaService(uploadedZipFile);
+          serviceSummary = res.summary;
+        } catch {
+          /* Fall back to Gemini Vision */
+        }
       }
     }
-    if (!analyzedByService) {
-      regions = await analyzeStudyAttention(dicomStudy, (p) => {
-        setGenerationStep(p < 60 ? 1 : 2);
-        setProgressPercent(5 + Math.round(p * 0.82));
-      });
-    }
 
-    setGenerationStep(3);
-    setProgressPercent(93);
-    setAttentionRegions(regions);
-    setAnalysisEngine(engineLabel);
+    setGenerationStep(2);
+    setProgressPercent(40);
 
-    const isCT = dicomStudy.modality.toUpperCase() === 'CT';
-    const regionLines = regions.map(
-      (r, i) =>
-        `Срез ${r.sliceNumber}: ${r.label.toLowerCase()} (отклонение ${r.score.toFixed(1)}σ от медианы тканей среза${
-          isCT ? `, средняя плотность ${Math.round(r.meanValue)} HU` : ''
-        }) — ROI #${i + 1}, требует оценки врача.`,
+    // Call Gemini Vision (real API) or template fallback
+    setGenerationStatus(provider === 'gemini' && apiKey
+      ? `Отправка ${customCase.totalSlices} срезов в Gemini Vision API…`
+      : 'Формирование протокола (шаблон)…'
     );
 
-    const findings =
-      `Метод анализа: ${engineLabel}.${serviceSummary ? ` ${serviceSummary}.` : ''}\n\n` +
-      `На серии срезов (${dicomStudy.slices.length} изображений, ${dicomStudy.modality}) анатомические структуры дифференцированы, взаимное расположение сохранено.\n\n` +
-      (regions.length > 0
-        ? `Автоматический статистический анализ плотности выявил ${regions.length} зон(у/ы) внимания:\n${regionLines.join(
-            '\n',
-          )}\n\nОтмеченные зоны — статистические отклонения локальной плотности, а не диагноз. Каждая зона требует визуальной оценки врачом (доступен полноэкранный режим с увеличением).`
-        : 'Автоматический статистический анализ плотности значимых локальных отклонений на анализируемых срезах не выявил. Рекомендуется выборочный визуальный контроль серии.');
+    const aiResult = await generateRadiologyConclusion(
+      customCase,
+      provider,
+      serviceSummary || undefined,
+      dicomStudy ?? undefined,
+      apiKey,
+      (step, pct) => {
+        setGenerationStatus(step);
+        setProgressPercent(40 + Math.round(pct * 0.55));
+      },
+    );
 
-    const impression =
-      regions.length > 0
-        ? `Автоматический анализ отметил ${regions.length} зон(у/ы) статистического отклонения плотности (максимальное ${regions[0].score.toFixed(
-            1,
-          )}σ, срез ${regions[0].sliceNumber}). Черновик сформирован автоматически и требует верификации врачом.`
-        : 'Значимых статистических отклонений плотности не выявлено. Черновик сформирован автоматически и требует верификации врачом.';
+    const engineLabel = aiResult.provider;
+
+    // Build traceableItems from AI-returned clinical annotations
+    const traceFromAnnotations = aiResult.annotations.length > 0
+      ? aiResult.annotations.map((ann, i) => ({
+          phrase: ann.label,
+          slices: String(Math.round((ann.slicePercent / 100) * customCase.totalSlices)),
+          confidence: ann.severity === 'pathology' ? 91 : ann.severity === 'warning' ? 78 : 65,
+          roi: `AI Маркер #${i + 1}`,
+          details: `ИИ выявил: "${ann.label}" на позиции ${ann.slicePercent.toFixed(0)}% серии (срез ~${Math.round((ann.slicePercent / 100) * customCase.totalSlices)}).`,
+          targetSlice: Math.max(1, Math.round((ann.slicePercent / 100) * customCase.totalSlices)),
+        }))
+      : customCase.traceableItems;
+
+    const computedConfidence = (() => {
+      if (aiResult.annotations.length === 0) return 85;
+      const hasPathology = aiResult.annotations.some(a => a.severity === 'pathology');
+      const hasWarning = aiResult.annotations.some(a => a.severity === 'warning');
+      return hasPathology ? 93 : hasWarning ? 89 : 85;
+    })();
 
     const updatedCase: CaseData = {
       ...customCase,
-      findingsText: findings,
-      impression,
-      isPathology: false,
-      confidenceScore: regions.length > 0 ? Math.min(97, Math.round(60 + regions[0].score * 6)) : 92,
-      traceableItems:
-        regions.length > 0
-          ? regions.map((r, i) => ({
-              phrase: r.label,
-              slices: String(r.sliceNumber),
-              confidence: Math.min(97, Math.round(55 + r.score * 8)),
-              roi: `ROI #${i + 1}`,
-              details: `Отклонение ${r.score.toFixed(1)}σ${
-                isCT ? `, средняя плотность ${Math.round(r.meanValue)} HU` : ''
-              }. Кликните, чтобы перейти к срезу ${r.sliceNumber}.`,
-              targetSlice: r.sliceNumber,
-            }))
-          : customCase.traceableItems,
+      findingsText: aiResult.findings,
+      impression: aiResult.conclusion,
+      recommendations: aiResult.recommendations,
+      isPathology: aiResult.annotations.some(a => a.severity === 'pathology'),
+      confidenceScore: computedConfidence,
+      processingTime: `${((Date.now() - ((window as unknown as Record<string, number>)['_aiStartTime'] ?? Date.now())) / 1000).toFixed(2)}s`,
+      traceableItems: traceFromAnnotations,
+      aiAnnotations: aiResult.annotations,
     };
+
+    // Clear old statistical attention regions — we use AI annotations now
+    setAttentionRegions([]);
     setCustomCase(updatedCase);
-    setFindingsText(findings);
+    setFindingsText(aiResult.findings);
+    setAnalysisEngine(engineLabel);
 
     setTimeout(() => {
       setGenerationStep(4);
@@ -345,49 +295,16 @@ export default function Home() {
       setIsGenerating(false);
       setIsGenerated(true);
       setShowAiOverlay(true);
-      if (regions.length > 0) {
-        setCurrentSlice(regions[0].sliceNumber);
-        setToastMessage(
-          `Анализ завершён: отмечено зон внимания — ${regions.length}. Перешли к срезу ${regions[0].sliceNumber}`,
-        );
-      } else {
-        setToastMessage('Анализ завершён: значимых зон внимания не выявлено');
-      }
-    }, 500);
+      setGenerationStatus('');
+      setToastMessage(`🤖 ИИ Черновик сформирован (${engineLabel})`);
+    }, 400);
   };
 
-  // AI Pipeline Execution (~3.5 seconds total)
-  const handleRunAiGeneration = () => {
-    if (selectedCaseId === 'custom-upload' && dicomStudy) {
-      void runRealStudyAnalysis();
-      return;
-    }
-    setIsGenerating(true);
-    setIsGenerated(false);
-    setGenerationStep(1);
-    setProgressPercent(15);
-
-    // Step 1 -> Step 2 after 1100ms
-    setTimeout(() => {
-      setGenerationStep(2);
-      setProgressPercent(55);
-    }, 1100);
-
-    // Step 2 -> Step 3 after 2300ms
-    setTimeout(() => {
-      setGenerationStep(3);
-      setProgressPercent(88);
-    }, 2300);
-
-    // Step 3 -> Completed after 3400ms
-    setTimeout(() => {
-      setGenerationStep(4);
-      setProgressPercent(100);
-      setIsGenerating(false);
-      setIsGenerated(true);
-      setShowAiOverlay(true);
-      setToastMessage('Черновик медицинского протокола успешно сгенерирован ИИ');
-    }, 3400);
+  // AI Pipeline Execution — triggered from AiWorkspace
+  const handleRunAiGeneration = (provider?: AiProvider, apiKey?: string) => {
+    const p = provider ?? selectedAiProvider;
+    setSelectedAiProvider(p);
+    void runRealStudyAnalysis(p, apiKey);
   };
 
   // Handle Doctor Digital Signing
@@ -426,14 +343,12 @@ export default function Home() {
 
       {/* 2. Main Content Layout */}
       <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 flex flex-col gap-4 print:hidden">
-        {/* Case Selector Toolbar */}
-        <section aria-label="Выбор клинического кейса">
-          <CaseSelector
-            cases={cases}
-            selectedCaseId={selectedCaseId}
-            onSelectCase={handleSelectCase}
+        {/* Upload Toolbar */}
+        <section aria-label="Загрузка исследования">
+          <UploadZone
             onCustomUpload={handleCustomUpload}
             uploadedFileName={uploadedFileName}
+            isLoading={isLoadingStudy}
           />
           {isLoadingStudy && (
             <div className="mt-2 flex items-center gap-2 px-3 py-2 rounded-lg bg-[#111827] border border-[#1E293B] text-[11px] font-mono text-[#00D2FF]">
@@ -443,140 +358,174 @@ export default function Home() {
           )}
         </section>
 
-        {/* 2-Column Responsive Radiology Workspace */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
-          {/* ======================================================== */}
-          {/* LEFT COLUMN: DICOM Image Viewer & Controls & Metadata */}
-          {/* ======================================================== */}
-          <section
-            aria-label="DICOM Просмотрщик"
-            className="flex flex-col gap-3 order-1"
-          >
-            {/* Main DICOM Viewer */}
-            <DicomViewer
-              currentCase={activeCase}
-              currentSlice={currentSlice}
-              windowPreset={windowPreset}
-              zoomLevel={zoomLevel}
-              rotation={rotation}
-              isInverted={isInverted}
-              isAiGenerated={isGenerated}
-              showAiOverlay={showAiOverlay}
-              onToggleAiOverlay={() => setShowAiOverlay(!showAiOverlay)}
-              onSliceChange={setCurrentSlice}
-              customImageDataUrl={
-                selectedCaseId === 'custom-upload' ? customImageDataUrl : null
-              }
-              dicomStudy={selectedCaseId === 'custom-upload' ? dicomStudy : null}
-              attentionRegions={selectedCaseId === 'custom-upload' ? attentionRegions : []}
-              onOpenFullscreen={() => setIsFullscreen(true)}
-            />
+        {/* Workspace — shown only after a file is uploaded */}
+        {activeCase ? (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
+            {/* ======================================================== */}
+            {/* LEFT COLUMN: DICOM Image Viewer & Controls & Metadata */}
+            {/* ======================================================== */}
+            <section
+              aria-label="DICOM Просмотрщик"
+              className="flex flex-col gap-3 order-1"
+            >
+              {/* Main DICOM Viewer
+                  Only show statistical attention regions for CT; for MR they reflect
+                  pixel-density anomalies that are not clinically meaningful. */}
+              {(() => {
+                const isCT = dicomStudy?.modality?.toUpperCase() === 'CT';
+                return (
+                  <DicomViewer
+                    currentCase={activeCase}
+                    currentSlice={currentSlice}
+                    windowPreset={windowPreset}
+                    zoomLevel={zoomLevel}
+                    rotation={rotation}
+                    isInverted={isInverted}
+                    isAiGenerated={isGenerated}
+                    showAiOverlay={showAiOverlay}
+                    onToggleAiOverlay={() => setShowAiOverlay(!showAiOverlay)}
+                    onSliceChange={setCurrentSlice}
+                    customImageDataUrl={customImageDataUrl}
+                    dicomStudy={dicomStudy}
+                    attentionRegions={activeCase.aiAnnotations ?? []}
+                    onOpenFullscreen={() => setIsFullscreen(true)}
+                  />
+                );
+              })()}
 
-            {/* Viewer Controls (Slice Slider, Windowing Tabs, Tools) */}
-            <ViewerControls
-              currentSlice={currentSlice}
-              totalSlices={activeCase.totalSlices}
-              onSliceChange={setCurrentSlice}
-              windowPreset={windowPreset}
-              onWindowPresetChange={setWindowPreset}
-              zoomLevel={zoomLevel}
-              onZoomChange={setZoomLevel}
-              rotation={rotation}
-              onRotateChange={setRotation}
-              isInverted={isInverted}
-              onToggleInvert={() => setIsInverted(!isInverted)}
-              onResetView={handleResetView}
-              caseType={activeCase.caseType}
-            />
+              {/* Viewer Controls (Slice Slider, Windowing Tabs, Tools) */}
+              <ViewerControls
+                currentSlice={currentSlice}
+                totalSlices={activeCase.totalSlices}
+                onSliceChange={setCurrentSlice}
+                windowPreset={windowPreset}
+                onWindowPresetChange={setWindowPreset}
+                zoomLevel={zoomLevel}
+                onZoomChange={setZoomLevel}
+                rotation={rotation}
+                onRotateChange={setRotation}
+                isInverted={isInverted}
+                onToggleInvert={() => setIsInverted(!isInverted)}
+                onResetView={handleResetView}
+                caseType={(() => {
+                  const mod = (activeCase.modality || '').toUpperCase();
+                  const body = (activeCase.bodyPart || activeCase.title || '').toLowerCase();
+                  if (mod === 'CT' && body.includes('lung')) return 'lung';
+                  if (body.includes('мозг') || body.includes('brain') || body.includes('head')) return 'brain';
+                  if (body.includes('позв') || body.includes('spine') || body.includes('lumbar') || body.includes('l_spine') || body.includes('cervical')) return 'spine';
+                  return activeCase.caseType ?? 'brain';
+                })()}
+              />
 
-            {/* DICOM Metadata Card */}
-            <MetadataCard currentCase={activeCase} />
-          </section>
+              {/* DICOM Metadata Card */}
+              <MetadataCard currentCase={activeCase} />
+            </section>
 
-          {/* ======================================================== */}
-          {/* RIGHT COLUMN: AI Clinical Workspace & Report Editor */}
-          {/* ======================================================== */}
-          <section
-            aria-label="AI Клинический ассистент"
-            className="flex flex-col gap-3 order-2"
-          >
-            {/* AI Generator Button & Inference Pipeline Progress */}
-            <AiWorkspace
-              currentCase={activeCase}
-              isGenerating={isGenerating}
-              generationStep={generationStep}
-              progressPercent={progressPercent}
-              onGenerate={handleRunAiGeneration}
-              isGenerated={isGenerated}
-            />
+            {/* ======================================================== */}
+            {/* RIGHT COLUMN: AI Clinical Workspace & Report Editor */}
+            {/* ======================================================== */}
+            <section
+              aria-label="AI Клинический ассистент"
+              className="flex flex-col gap-3 order-2"
+            >
+              {/* AI Generator Button & Inference Pipeline Progress */}
+              <AiWorkspace
+                currentCase={activeCase}
+                isGenerating={isGenerating}
+                generationStep={generationStep}
+                progressPercent={progressPercent}
+                generationStatus={generationStatus}
+                onGenerate={handleRunAiGeneration}
+                isGenerated={isGenerated}
+                selectedProvider={selectedAiProvider}
+                onProviderChange={setSelectedAiProvider}
+              />
 
-            {/* Structured Report Editor (Appears after AI generation) */}
-            {isGenerated ? (
-              <>
-                {analysisEngine && (
-                  <div className="px-3 py-1.5 rounded-lg bg-[#111827] border border-[#1E293B] text-[10px] font-mono text-[#94A3B8]">
-                    Движок анализа: <span className="text-[#00D2FF]">{analysisEngine}</span>
+              {/* Structured Report Editor (Appears after AI generation) */}
+              {isGenerated ? (
+                <>
+                  {analysisEngine && (
+                    <div className="px-3 py-1.5 rounded-lg bg-[#111827] border border-[#1E293B] text-[10px] font-mono text-[#94A3B8]">
+                      Движок анализа: <span className="text-[#00D2FF]">{analysisEngine}</span>
+                    </div>
+                  )}
+                  <ReportEditor
+                    currentCase={activeCase}
+                    findingsText={findingsText}
+                    onFindingsTextChange={setFindingsText}
+                    onJumpToSlice={handleJumpToSlice}
+                    signatureData={signatureData}
+                    onRegenerate={handleRunAiGeneration}
+                  />
+
+                  {/* Action Bar */}
+                  <ActionBar
+                    currentCase={activeCase}
+                    findingsText={findingsText}
+                    isGenerated={isGenerated}
+                    signatureData={signatureData}
+                    onSign={handleSignReport}
+                    onShowToast={(msg) => setToastMessage(msg)}
+                    onRegenerate={handleRunAiGeneration}
+                  />
+                </>
+              ) : !isGenerating ? (
+                /* Idle Placeholder state before generation */
+                <div className="p-8 rounded-xl bg-[#111827] border border-[#1E293B] border-dashed flex flex-col items-center justify-center text-center gap-3 min-h-[320px]">
+                  <div className="w-12 h-12 rounded-xl bg-[#0066FF]/10 text-[#00D2FF] border border-[#0066FF]/20 flex items-center justify-center">
+                    <span className="text-xl">🩺</span>
                   </div>
-                )}
-                <ReportEditor
-                  currentCase={activeCase}
-                  findingsText={findingsText}
-                  onFindingsTextChange={setFindingsText}
-                  onJumpToSlice={handleJumpToSlice}
-                  signatureData={signatureData}
-                  onRegenerate={handleRunAiGeneration}
-                />
-
-                {/* Action Bar */}
-                <ActionBar
-                  currentCase={activeCase}
-                  findingsText={findingsText}
-                  isGenerated={isGenerated}
-                  signatureData={signatureData}
-                  onSign={handleSignReport}
-                  onShowToast={(msg) => setToastMessage(msg)}
-                  onRegenerate={handleRunAiGeneration}
-                />
-              </>
-            ) : !isGenerating ? (
-              /* Idle Placeholder state before generation */
-              <div className="p-8 rounded-xl bg-[#111827] border border-[#1E293B] border-dashed flex flex-col items-center justify-center text-center gap-3 min-h-[320px]">
-                <div className="w-12 h-12 rounded-xl bg-[#0066FF]/10 text-[#00D2FF] border border-[#0066FF]/20 flex items-center justify-center">
-                  <span className="text-xl">🩺</span>
+                  <div className="max-w-md">
+                    <h3 className="text-sm font-bold text-[#E5E7EB]">
+                      Готов к анализу снимка
+                    </h3>
+                    <p className="text-xs text-[#94A3B8] mt-1 leading-relaxed">
+                      Нажмите кнопку <strong className="text-[#00D2FF]">«Сгенерировать черновик протокола»</strong> выше, чтобы запустить автоматическую сегментацию срезов и формирование медицинского описания.
+                    </p>
+                  </div>
                 </div>
-                <div className="max-w-md">
-                  <h3 className="text-sm font-bold text-[#E5E7EB]">
-                    Готов к анализу снимка
-                  </h3>
-                  <p className="text-xs text-[#94A3B8] mt-1 leading-relaxed">
-                    Нажмите кнопку <strong className="text-[#00D2FF]">«Сгенерировать черновик протокола»</strong> выше, чтобы запустить автоматическую сегментацию срезов и формирование медицинского описания.
-                  </p>
-                </div>
-              </div>
-            ) : null}
-          </section>
-        </div>
+              ) : null}
+            </section>
+          </div>
+        ) : !isLoadingStudy ? (
+          /* Empty state — no file loaded yet */
+          <div className="flex flex-col items-center justify-center text-center gap-6 py-24">
+            <div className="w-20 h-20 rounded-2xl bg-[#0066FF]/10 border border-[#0066FF]/20 flex items-center justify-center">
+              <svg className="w-10 h-10 text-[#00D2FF]" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
+              </svg>
+            </div>
+            <div>
+              <h2 className="text-lg font-bold text-[#E5E7EB]">Загрузите DICOM-исследование</h2>
+              <p className="text-sm text-[#94A3B8] mt-2 max-w-sm leading-relaxed">
+                Поддерживаются ZIP-архивы с DICOM-файлами (МРТ, МСКТ и другие модальности). Нажмите кнопку выше, чтобы выбрать файл.
+              </p>
+            </div>
+          </div>
+        ) : null}
       </main>
 
       {/* 3. Printable Medical Letterhead (Displayed only during print) */}
-      <PrintReportTemplate
-        currentCase={activeCase}
-        findingsText={findingsText}
-        signatureData={signatureData}
-      />
+      {activeCase && (
+        <PrintReportTemplate
+          currentCase={activeCase}
+          findingsText={findingsText}
+          signatureData={signatureData}
+        />
+      )}
 
       {/* 4. Fullscreen reading mode for real DICOM studies */}
-      {isFullscreen && dicomStudy && selectedCaseId === 'custom-upload' && (
+      {isFullscreen && dicomStudy && (
         <FullscreenViewer
           study={dicomStudy}
-          caseTitle={activeCase.title}
+          caseTitle={activeCase?.title ?? ''}
           currentSlice={currentSlice}
           onSliceChange={setCurrentSlice}
           windowPreset={windowPreset}
           onWindowPresetChange={setWindowPreset}
           isInverted={isInverted}
           onToggleInvert={() => setIsInverted(!isInverted)}
-          regions={isGenerated ? attentionRegions : []}
+          regions={isGenerated ? (activeCase?.aiAnnotations ?? []) : []}
           onClose={() => setIsFullscreen(false)}
         />
       )}

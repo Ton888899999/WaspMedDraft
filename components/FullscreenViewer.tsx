@@ -13,9 +13,8 @@ import {
   EyeOff,
   Crosshair,
 } from 'lucide-react';
-import { WindowPreset } from '@/lib/types';
+import { WindowPreset, ClinicalAnnotation } from '@/lib/types';
 import { DicomStudy } from '@/lib/dicom/study';
-import { AttentionRegion } from '@/lib/dicom/analyze';
 import { DicomSliceCanvas } from '@/components/DicomSliceCanvas';
 
 interface FullscreenViewerProps {
@@ -27,7 +26,7 @@ interface FullscreenViewerProps {
   onWindowPresetChange: (preset: WindowPreset) => void;
   isInverted: boolean;
   onToggleInvert: () => void;
-  regions: AttentionRegion[];
+  regions: ClinicalAnnotation[];
   onClose: () => void;
 }
 
@@ -64,7 +63,10 @@ export const FullscreenViewer: React.FC<FullscreenViewerProps> = ({
   const pinchRef = useRef<{ dist: number; zoom: number } | null>(null);
   const totalSlices = study.slices.length;
   const slice = study.slices[Math.max(0, currentSlice - 1)];
-  const regionsOnSlice = regions.filter((r) => Math.abs(r.sliceNumber - currentSlice) <= 2);
+  const regionsOnSlice = regions.filter((ann) => {
+    const targetSlice = Math.max(1, Math.round((ann.slicePercent / 100) * totalSlices));
+    return Math.abs(targetSlice - currentSlice) <= 2;
+  });
 
   const clampSlice = useCallback(
     (v: number) => Math.min(totalSlices, Math.max(1, v)),
@@ -240,8 +242,9 @@ export const FullscreenViewer: React.FC<FullscreenViewerProps> = ({
             sliceIndex={currentSlice - 1}
             windowPreset={windowPreset}
             isInverted={isInverted}
-            regions={regions}
-            showRegions={showRegions}
+            totalSlices={totalSlices}
+            aiAnnotations={regions}
+            showAnnotations={showRegions}
             className="max-w-full max-h-[calc(100vh-110px)] object-contain"
           />
         </div>

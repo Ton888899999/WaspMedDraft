@@ -2,63 +2,178 @@
 
 import React from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Sparkles, ScanLine, Target, FileText, CheckCircle2, Loader2, Bot, Cpu } from 'lucide-react';
+import { Sparkles, ScanLine, Target, FileText, CheckCircle2, Loader2, Bot, Key, Eye, EyeOff } from 'lucide-react';
 import { CaseData } from '@/lib/types';
+import { AiProvider } from '@/lib/ai/radiologyAi';
 
 interface AiWorkspaceProps {
   currentCase: CaseData;
   isGenerating: boolean;
   generationStep: number; // 0: idle, 1: scanning, 2: detecting, 3: structuring, 4: done
   progressPercent: number;
-  onGenerate: () => void;
+  generationStatus?: string;
+  onGenerate: (provider?: AiProvider, apiKey?: string) => void;
   isGenerated: boolean;
+  selectedProvider?: AiProvider;
+  onProviderChange?: (provider: AiProvider) => void;
 }
+
+const GEMINI_KEY_STORAGE = 'medai_gemini_api_key';
 
 export const AiWorkspace: React.FC<AiWorkspaceProps> = ({
   currentCase,
   isGenerating,
   generationStep,
   progressPercent,
+  generationStatus,
   onGenerate,
   isGenerated,
+  selectedProvider = 'gemini',
+  onProviderChange,
 }) => {
+  const [provider, setProvider] = React.useState<AiProvider>(selectedProvider);
+  const [apiKey, setApiKey] = React.useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem(GEMINI_KEY_STORAGE) ?? '';
+    }
+    return '';
+  });
+  const [showKey, setShowKey] = React.useState(false);
+  const [keyError, setKeyError] = React.useState('');
+
+  const handleProviderSelect = (p: AiProvider) => {
+    setProvider(p);
+    if (onProviderChange) onProviderChange(p);
+  };
+
+  const handleKeyChange = (v: string) => {
+    setApiKey(v);
+    setKeyError('');
+    if (typeof window !== 'undefined') {
+      if (v.trim()) localStorage.setItem(GEMINI_KEY_STORAGE, v.trim());
+      else localStorage.removeItem(GEMINI_KEY_STORAGE);
+    }
+  };
+
+  const handleGenerate = () => {
+    if (provider === 'gemini' && !apiKey.trim()) {
+      setKeyError('Введите Gemini API-ключ для реального Vision-анализа');
+      return;
+    }
+    setKeyError('');
+    onGenerate(provider, apiKey.trim() || undefined);
+  };
+
   const steps = [
     {
       id: 1,
-      title: 'Анализ и сегментация срезов...',
-      desc: '3D реконструкция DICOM вокселей, выравнивание анатомических ориентиров',
+      title: 'Растрирование и подготовка срезов',
+      desc: `Рендер ключевых кадров из ${currentCase.totalSlices} срезов серии в JPEG для Vision API`,
       icon: ScanLine,
     },
     {
       id: 2,
-      title: 'Поиск патологических очагов...',
-      desc: 'Компьютерное зрение (CNN-Transformer), сравнение с базой RadLex 2026',
+      title: 'Vision-инференс (Gemini)',
+      desc: `Анализ кадров промптом RADIOLOGY_SYSTEM · ${provider.toUpperCase()} Vision API`,
       icon: Target,
     },
     {
       id: 3,
-      title: 'Составление заключения (NLP)...',
-      desc: 'Синтез структурированного описания по клиническим стандартам Минздрава',
+      title: 'Синтез протокола (Тавсиф + Хулоса)',
+      desc: 'Парсинг JSON {findings, conclusion} по медицинскому стандарту',
       icon: FileText,
     },
   ];
 
   return (
     <div className="flex flex-col gap-3">
-      {/* 1. MAIN AI GENERATION BUTTON */}
+      {/* 1. PROVIDER SELECTOR & API KEY & GENERATION BUTTON */}
       {!isGenerated && !isGenerating ? (
-        <button
-          onClick={onGenerate}
-          className="w-full py-4 px-3 rounded-xl bg-gradient-to-r from-[#0066FF] to-[#00D2FF] text-white font-bold text-xs sm:text-sm shadow-[0_4px_20px_rgba(0,102,255,0.3)] flex items-center justify-center gap-2.5 hover:scale-[1.01] transition-transform active:scale-95 cursor-pointer"
-        >
-          <svg className="w-5 h-5 text-white shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-7.714 2.143L11 21l-2.286-6.857L1 12l7.714-2.143L11 3z" />
-          </svg>
-          <span className="tracking-wide text-center leading-snug">
-            <span className="sm:hidden">СГЕНЕРИРОВАТЬ ЧЕРНОВИК (AI)</span>
-            <span className="hidden sm:inline">СГЕНЕРИРОВАТЬ ЧЕРНОВИК ПРОТОКОЛА (AI DRAFT)</span>
-          </span>
-        </button>
+        <div className="p-3 rounded-xl bg-[#111827] border border-[#1E293B] flex flex-col gap-2.5 shadow-lg">
+          {/* Provider selector */}
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-[#94A3B8] font-mono text-[11px] flex items-center gap-1.5">
+              <Bot className="w-3.5 h-3.5 text-[#00D2FF]" />
+              Провайдер ИИ-модели:
+            </span>
+            <div className="flex items-center gap-1 bg-[#0B0F17] p-1 rounded-lg border border-[#1E293B]">
+              <button
+                type="button"
+                onClick={() => handleProviderSelect('gemini')}
+                className={`px-2.5 py-1 rounded text-[10px] font-bold transition-all ${
+                  provider === 'gemini'
+                    ? 'bg-[#0066FF] text-white shadow-sm'
+                    : 'text-[#94A3B8] hover:text-white'
+                }`}
+              >
+                Gemini Vision
+              </button>
+              <button
+                type="button"
+                onClick={() => handleProviderSelect('local')}
+                className={`px-2.5 py-1 rounded text-[10px] font-bold transition-all ${
+                  provider === 'local'
+                    ? 'bg-emerald-600 text-white shadow-sm'
+                    : 'text-[#94A3B8] hover:text-white'
+                }`}
+              >
+                Local AI
+              </button>
+            </div>
+          </div>
+
+          {/* API Key input — shown only for Gemini */}
+          {provider === 'gemini' && (
+            <div className="flex flex-col gap-1">
+              <label className="text-[10px] font-mono text-[#64748B] flex items-center gap-1">
+                <Key className="w-3 h-3" />
+                Gemini API Key{' '}
+                <span className="text-[#374151]">(хранится локально в браузере)</span>
+              </label>
+              <div className="relative">
+                <input
+                  type={showKey ? 'text' : 'password'}
+                  value={apiKey}
+                  onChange={(e) => handleKeyChange(e.target.value)}
+                  placeholder="AIza... или AQ.Ab8RN..."
+                  className={`w-full bg-[#0B0F17] border rounded-lg px-3 py-2 text-xs font-mono text-[#E5E7EB] placeholder-[#374151] outline-none pr-9 transition-colors ${
+                    keyError
+                      ? 'border-red-500/60 focus:border-red-400'
+                      : 'border-[#1E293B] focus:border-[#0066FF]/60'
+                  }`}
+                  spellCheck={false}
+                  autoComplete="off"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowKey((v) => !v)}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-[#64748B] hover:text-[#94A3B8]"
+                >
+                  {showKey ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                </button>
+              </div>
+              {keyError && (
+                <p className="text-[10px] text-red-400 font-mono">{keyError}</p>
+              )}
+              {apiKey && !keyError && (
+                <p className="text-[10px] text-emerald-400 font-mono">
+                  ✓ API-ключ готов · будет проанализировано{' '}
+                  {Math.min(16, currentCase.totalSlices)} из {currentCase.totalSlices} срезов (Vision API)
+                </p>
+              )}
+            </div>
+          )}
+
+          <button
+            onClick={handleGenerate}
+            className="w-full py-3.5 px-3 rounded-xl bg-gradient-to-r from-[#0066FF] via-[#00A3FF] to-[#00D2FF] text-white font-bold text-xs sm:text-sm shadow-[0_4px_20px_rgba(0,102,255,0.3)] flex items-center justify-center gap-2.5 hover:scale-[1.01] transition-transform active:scale-95 cursor-pointer"
+          >
+            <Sparkles className="w-4 h-4 text-white shrink-0 animate-pulse" />
+            <span className="tracking-wide text-center leading-snug">
+              🤖 ИИ АНАЛИЗИРОВАТЬ {currentCase.totalSlices} СРЕЗОВ (RADIOLOGY AI)
+            </span>
+          </button>
+        </div>
       ) : null}
 
       {/* 2. GENERATION PROGRESS PIPELINE */}
@@ -78,10 +193,10 @@ export const AiWorkspace: React.FC<AiWorkspaceProps> = ({
                 </div>
                 <div>
                   <h3 className="text-xs font-bold text-[#E5E7EB]">
-                    Инференс нейросетевого пайплайна
+                    Инференс RADIOLOGY_SYSTEM ({provider.toUpperCase()})
                   </h3>
                   <p className="text-[10px] text-[#94A3B8] font-mono">
-                    Обработка {currentCase.totalSlices} срезов · {currentCase.modality}
+                    {generationStatus || `Обработка ${currentCase.totalSlices} срезов · ${currentCase.modality}`}
                   </p>
                 </div>
               </div>

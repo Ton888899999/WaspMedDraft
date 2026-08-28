@@ -2,9 +2,8 @@
 
 import React, { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { CaseData, WindowPreset } from '@/lib/types';
+import { CaseData, WindowPreset, ClinicalAnnotation } from '@/lib/types';
 import { DicomStudy } from '@/lib/dicom/study';
-import { AttentionRegion } from '@/lib/dicom/analyze';
 import { DicomSliceCanvas } from '@/components/DicomSliceCanvas';
 import { Eye, EyeOff, Maximize2, Sparkles, Target, ScanLine } from 'lucide-react';
 
@@ -21,7 +20,7 @@ interface DicomViewerProps {
   onSliceChange?: (slice: number) => void;
   customImageDataUrl?: string | null;
   dicomStudy?: DicomStudy | null;
-  attentionRegions?: AttentionRegion[];
+  attentionRegions?: ClinicalAnnotation[];
   onOpenFullscreen?: () => void;
 }
 
@@ -154,7 +153,7 @@ export const DicomViewer: React.FC<DicomViewerProps> = ({
               <span>FULLSCREEN</span>
             </button>
           )}
-          {isAiGenerated && dicomStudy && attentionRegions.length > 0 && (
+          {isAiGenerated && attentionRegions.length > 0 && (
             <button
               onClick={onToggleAiOverlay}
               className={`flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono transition-colors ${
@@ -216,8 +215,9 @@ export const DicomViewer: React.FC<DicomViewerProps> = ({
                 sliceIndex={Math.max(0, currentSlice - 1)}
                 windowPreset={windowPreset}
                 isInverted={isInverted}
-                regions={attentionRegions}
-                showRegions={isAiGenerated && showAiOverlay}
+                totalSlices={currentCase.totalSlices}
+                aiAnnotations={attentionRegions as ClinicalAnnotation[]}
+                showAnnotations={isAiGenerated && showAiOverlay}
               />
             </div>
           ) : customImageDataUrl ? (

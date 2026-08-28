@@ -42,32 +42,6 @@ export const CaseSelector: React.FC<CaseSelectorProps> = ({
                 : 'border border-[#1E293B] bg-[#111827] hover:bg-[#1E293B] opacity-75 hover:opacity-100'
             }`}
           >
-            <div className="flex items-center gap-1.5 mb-1">
-              {c.isPathology ? (
-                <>
-                  <div className="p-1 bg-[#EF4444]/10 rounded">
-                    <svg className="w-3 h-3 text-[#EF4444]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <circle cx="12" cy="12" r="9" />
-                      <path d="M12 8v4M12 16h.01" />
-                    </svg>
-                  </div>
-                  <span className="text-[10px] text-[#EF4444] font-bold tracking-wider">
-                    PATHOLOGY
-                  </span>
-                </>
-              ) : (
-                <>
-                  <div className="p-1 bg-[#10B981]/10 rounded">
-                    <svg className="w-3 h-3 text-[#10B981]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20 6L9 17l-5-5" />
-                    </svg>
-                  </div>
-                  <span className="text-[10px] text-[#10B981] font-bold tracking-wider">
-                    NORMAL
-                  </span>
-                </>
-              )}
-            </div>
             <p className="text-[11px] font-semibold truncate text-[#E5E7EB]">
               {c.title}
             </p>

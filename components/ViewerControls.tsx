@@ -147,14 +147,17 @@ export const ViewerControls: React.FC<ViewerControlsProps> = ({
           </button>
 
           <button
-            onClick={() => onWindowPresetChange(caseType === 'lung' ? 'lung' : 'brain')}
+            onClick={() => {
+              if (caseType === 'lung') onWindowPresetChange('lung');
+              else onWindowPresetChange('brain');
+            }}
             className={`px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all ${
               windowPreset === 'lung' || windowPreset === 'brain'
                 ? 'bg-[#1E293B] border border-[#0066FF] text-[#00D2FF]'
                 : 'bg-transparent text-[#94A3B8] border border-transparent hover:text-white'
             }`}
           >
-            {caseType === 'lung' ? 'LUNG' : 'BRAIN'}
+            {caseType === 'lung' ? 'LUNG' : caseType === 'spine' ? 'MR SPINE' : 'BRAIN'}
           </button>
         </div>
 
