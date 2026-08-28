@@ -205,6 +205,9 @@ async function sliceToBase64Jpeg(
 
 // ─── Slice sampling strategy ──────────────────────────────────────────────────
 
+/** Cap on how many rendered slices are attached to a single Vision request. */
+const MAX_IMAGES_PER_REQUEST = 16;
+
 /**
  * Select representative slices from the full series:
  * - Always include first, last and middle
