@@ -11,6 +11,7 @@
     "warm": "find node_modules.nosync .next.nosync -type f -print0 2>/dev/null | xargs -0 -P 24 -n 200 cat > /dev/null 2>&1; echo warmed"
   },
   "dependencies": {
+    "@emotion/is-prop-valid": "^1.4.0",
     "@google/genai": "^2.4.0",
     "@hookform/resolvers": "^5.2.1",
     "@types/canvas-confetti": "^1.9.0",

@@ -12,6 +12,9 @@ export const viewport: Viewport = {
 export const metadata: Metadata = {
   title: 'WaspMed Draft — AI Co-pilot для радиологов (МРТ/КТ)',
   description: 'Интеллектуальный ассистент врача-рентгенолога для анализа МРТ/КТ снимков и автоматической генерации протоколов.',
+  icons: {
+    icon: '/icon.svg',
+  },
   openGraph: {
     title: 'WaspMed Draft — AI Co-pilot для радиологов',
     description: 'Интеллектуальный ассистент врача-рентгенолога для анализа МРТ/КТ снимков',
