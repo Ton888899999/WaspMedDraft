@@ -74,11 +74,6 @@ export interface GenerationStep {
 }
 
 export interface SignatureData {
-  isSigned: boolean;
   doctorName: string;
   doctorRole: string;
-  timestamp: string | null;
-  certNumber: string;
-  cryptoAlg: string;
-  hash: string;
 }

@@ -56,15 +56,10 @@ export default function Home() {
   // Editable Findings
   const [findingsText, setFindingsText] = useState<string>('');
 
-  // Digital Signature state
-  const [signatureData, setSignatureData] = useState<SignatureData>({
-    isSigned: false,
+  // Reporting doctor (attribution shown on the protocol, not a cryptographic signature)
+  const [signatureData] = useState<SignatureData>({
     doctorName: 'Dr. A. Karimov',
     doctorRole: 'Врач-рентгенолог высшей категории',
-    timestamp: null,
-    certNumber: '04FA 9128 BC45 8891 0021',
-    cryptoAlg: 'ГОСТ Р 34.10-2012 (256-bit)',
-    hash: 'e89f47a1...b2c9',
   });
 
   // Toast feedback
@@ -307,19 +302,11 @@ export default function Home() {
     void runRealStudyAnalysis(p, apiKey);
   };
 
-  // Handle Doctor Digital Signing
-  const handleSignReport = () => {
-    const now = new Date();
-    const formattedTime = `${now.toLocaleDateString('ru-RU')} ${now.toLocaleTimeString('ru-RU', {
-      hour: '2-digit',
-      minute: '2-digit',
-    })}`;
-
-    setSignatureData((prev) => ({
-      ...prev,
-      isSigned: true,
-      timestamp: formattedTime,
-    }));
+  // Let the operator fill in / correct the patient's full name when it isn't
+  // present in the DICOM metadata (e.g. de-identified studies, custom image
+  // uploads with no embedded tags).
+  const handlePatientNameChange = (name: string) => {
+    setCustomCase((prev) => (prev ? { ...prev, patientName: name } : prev));
   };
 
   // Reset view parameters
@@ -454,7 +441,7 @@ export default function Home() {
                     findingsText={findingsText}
                     onFindingsTextChange={setFindingsText}
                     onJumpToSlice={handleJumpToSlice}
-                    signatureData={signatureData}
+                    onPatientNameChange={handlePatientNameChange}
                     onRegenerate={handleRunAiGeneration}
                   />
 
@@ -464,7 +451,6 @@ export default function Home() {
                     findingsText={findingsText}
                     isGenerated={isGenerated}
                     signatureData={signatureData}
-                    onSign={handleSignReport}
                     onShowToast={(msg) => setToastMessage(msg)}
                     onRegenerate={handleRunAiGeneration}
                   />

@@ -83,7 +83,7 @@ export const PrintReportTemplate: React.FC<PrintReportTemplateProps> = ({
         </p>
       </div>
 
-      {/* Digital Signature & Stamp Footer */}
+      {/* Reporting Doctor & Final-word Disclaimer */}
       <div className="mt-6 pt-3 border-t-2 border-slate-900">
         <div>
           <div className="text-xs font-bold text-slate-900">
@@ -92,17 +92,9 @@ export const PrintReportTemplate: React.FC<PrintReportTemplateProps> = ({
           <div className="text-[11px] text-slate-600">
             {signatureData.doctorRole}
           </div>
-          {signatureData.isSigned ? (
-            <div className="mt-2 text-[10px] font-mono text-emerald-800 border border-emerald-600 p-1.5 rounded bg-emerald-50">
-              ✓ Документ подписан усиленной квалифицированной ЭЦП (ГОСТ Р 34.10-2012)
-              <br />
-              Владелец: {signatureData.doctorName} · Сертификат: {signatureData.certNumber} · {signatureData.timestamp}
-            </div>
-          ) : (
-            <div className="mt-2 text-[10px] text-amber-700 italic">
-              * Документ сформирован системой WaspMed Draft и ожидает электронной подписи врача.
-            </div>
-          )}
+          <div className="mt-2 text-[10px] text-slate-600 italic">
+            Окончательное заключение ставит врач. Это не диагноз.
+          </div>
         </div>
       </div>
     </div>

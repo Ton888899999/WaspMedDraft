@@ -1,17 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import {
-  PenLine,
-  CheckCircle,
-  Printer,
-  Copy,
-  Check,
-  Mic,
-  MicOff,
-  RotateCcw,
-  Sparkles,
-} from 'lucide-react';
+import { Printer, Copy, Check, Mic, MicOff, RotateCcw, Sparkles } from 'lucide-react';
 import { CaseData, SignatureData } from '@/lib/types';
 
 interface ActionBarProps {
@@ -19,7 +9,6 @@ interface ActionBarProps {
   findingsText: string;
   isGenerated: boolean;
   signatureData: SignatureData;
-  onSign: () => void;
   onShowToast: (message: string) => void;
   onRegenerate: () => void;
 }
@@ -29,31 +18,11 @@ export const ActionBar: React.FC<ActionBarProps> = ({
   findingsText,
   isGenerated,
   signatureData,
-  onSign,
   onShowToast,
   onRegenerate,
 }) => {
   const [isCopied, setIsCopied] = useState(false);
   const [isDictating, setIsDictating] = useState(false);
-
-  const handleSign = () => {
-    if (!signatureData.isSigned) {
-      // Confetti is loaded on demand — it's purely decorative and must not
-      // block signing or weigh down the initial bundle.
-      import('canvas-confetti')
-        .then(({ default: confetti }) =>
-          confetti({
-            particleCount: 80,
-            spread: 60,
-            origin: { y: 0.8 },
-            colors: ['#0066FF', '#00D2FF', '#10B981', '#ffffff'],
-          }),
-        )
-        .catch(() => {});
-      onSign();
-      onShowToast('Протокол успешно подписан ЭЦП врача-рентгенолога!');
-    }
-  };
 
   const handleCopy = async () => {
     const fullText = `МЕДИЦИНСКИЙ ПРОТОКОЛ ЛУЧЕВОГО ИССЛЕДОВАНИЯ
@@ -70,11 +39,8 @@ ${currentCase.impression}
 ${currentCase.recommendations ? `\nРекомендации: ${currentCase.recommendations}` : ''}
 ${currentCase.icdCode}
 
-${
-  signatureData.isSigned
-    ? `Подписано ЭЦП: ${signatureData.doctorName} (${signatureData.timestamp}), Сертификат: ${signatureData.certNumber}`
-    : 'Черновик сформирован WaspMed Draft. Ожидает подписи врача.'
-}`;
+Врач-рентгенолог: ${signatureData.doctorName} (${signatureData.doctorRole})
+Окончательное заключение ставит врач. Это не диагноз.`;
 
     try {
       await navigator.clipboard.writeText(fullText);
@@ -127,26 +93,11 @@ ${
       {/* 2. Print / PDF */}
       <button
         onClick={handlePrint}
-        className="flex-1 min-w-[110px] py-3 px-3 sm:px-4 rounded-xl border border-[#334155] bg-[#1E293B] text-xs font-bold hover:bg-[#334155] text-[#E5E7EB] transition-colors flex items-center justify-center gap-2 cursor-pointer"
+        className="flex-[2] min-w-[170px] py-3 px-4 rounded-xl bg-[#0066FF] text-white text-xs font-bold hover:bg-[#0052cc] shadow-[0_0_15px_rgba(0,102,255,0.4)] transition-all flex items-center justify-center gap-2 cursor-pointer"
         title="Печать и экспорт в PDF"
       >
-        <Printer className="w-4 h-4 text-[#94A3B8]" />
+        <Printer className="w-4 h-4" />
         <span>ПЕЧАТЬ / PDF</span>
-      </button>
-
-      {/* 3. Sign with EDS / Digital Signature */}
-      <button
-        onClick={handleSign}
-        disabled={signatureData.isSigned}
-        className={`flex-[2] min-w-[170px] py-3 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
-          signatureData.isSigned
-            ? 'bg-[#10B981]/20 text-[#10B981] border border-[#10B981]/40'
-            : 'bg-[#0066FF] text-white hover:bg-[#0052cc] shadow-[0_0_15px_rgba(0,102,255,0.4)]'
-        }`}
-        title={signatureData.isSigned ? 'Протокол уже подписан' : 'Подписать квалифицированной ЭЦП врача'}
-      >
-        <PenLine className="w-4 h-4" />
-        <span>{signatureData.isSigned ? 'ПОДПИСАНО ЭЦП ✓' : 'ПОДПИСАТЬ ЭЦП'}</span>
       </button>
     </div>
   );

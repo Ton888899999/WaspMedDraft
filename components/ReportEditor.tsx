@@ -14,9 +14,8 @@ import {
   Check,
   Search,
   Tag,
-  ShieldCheck,
 } from 'lucide-react';
-import { CaseData, TraceabilityItem, SignatureData } from '@/lib/types';
+import { CaseData, TraceabilityItem } from '@/lib/types';
 
 interface ReportEditorProps {
   currentCase: CaseData;
@@ -24,9 +23,8 @@ interface ReportEditorProps {
   onFindingsTextChange: (text: string) => void;
   onImpressionChange?: (text: string) => void;
   onJumpToSlice?: (slice: number) => void;
-  signatureData: SignatureData;
   onRegenerate: () => void;
-  aiProviderLabel?: string;
+  onPatientNameChange?: (name: string) => void;
 }
 
 export const ReportEditor: React.FC<ReportEditorProps> = ({
@@ -35,14 +33,31 @@ export const ReportEditor: React.FC<ReportEditorProps> = ({
   onFindingsTextChange,
   onImpressionChange,
   onJumpToSlice,
-  signatureData,
   onRegenerate,
-  aiProviderLabel = 'RADIOLOGY_SYSTEM (Gemini/Claude)',
+  onPatientNameChange,
 }) => {
   const [selectedTrace, setSelectedTrace] = useState<TraceabilityItem | null>(null);
   const [isEditingRaw, setIsEditingRaw] = useState(false);
   const [isEditingImpression, setIsEditingImpression] = useState(false);
   const [localImpression, setLocalImpression] = useState(currentCase.impression);
+  const [isEditingPatient, setIsEditingPatient] = useState(false);
+  const [localPatientName, setLocalPatientName] = useState(currentCase.patientName);
+
+  // Sync local patient name when the case changes (new upload / new AI generation)
+  React.useEffect(() => {
+    setLocalPatientName(currentCase.patientName);
+    setIsEditingPatient(false);
+  }, [currentCase.patientName]);
+
+  const commitPatientName = () => {
+    setIsEditingPatient(false);
+    const trimmed = localPatientName.trim();
+    if (trimmed && trimmed !== currentCase.patientName) {
+      onPatientNameChange?.(trimmed);
+    } else {
+      setLocalPatientName(currentCase.patientName);
+    }
+  };
 
   // Sync local impression when case changes (new AI generation)
   React.useEffect(() => {
@@ -146,6 +161,33 @@ export const ReportEditor: React.FC<ReportEditorProps> = ({
           <span className="text-[10px] text-[#94A3B8] font-mono">CONFIDENCE:</span>
           <span className="text-xs font-bold text-[#10B981]">{currentCase.confidenceScore}%</span>
         </div>
+      </div>
+
+      {/* 1b. PATIENT — editable by the operator; never invented automatically */}
+      <div className="flex items-center gap-2">
+        <span className="text-[9px] uppercase tracking-widest text-[#94A3B8] font-bold shrink-0">
+          Пациент:
+        </span>
+        {isEditingPatient ? (
+          <input
+            autoFocus
+            value={localPatientName}
+            onChange={(e) => setLocalPatientName(e.target.value)}
+            onBlur={commitPatientName}
+            onKeyDown={(e) => e.key === 'Enter' && commitPatientName()}
+            placeholder="Введите ФИО пациента"
+            className="flex-1 min-w-0 bg-[#0B0F17] border border-[#334155] rounded-md px-2 py-1 text-xs text-[#E5E7EB] focus:outline-none focus:border-[#0066FF]"
+          />
+        ) : (
+          <button
+            onClick={() => setIsEditingPatient(true)}
+            className="flex-1 min-w-0 text-left text-xs text-[#E5E7EB] hover:text-[#00D2FF] transition-colors truncate cursor-pointer"
+            title="Изменить ФИО пациента"
+          >
+            {currentCase.patientName || 'ФИО не указано'}{' '}
+            <span className="text-[#94A3B8]">✎</span>
+          </button>
+        )}
       </div>
 
       {/* 2. SCROLLABLE CONTENT SECTIONS */}
@@ -270,36 +312,13 @@ export const ReportEditor: React.FC<ReportEditorProps> = ({
         </section>
       </div>
 
-      {/* 3. SECTION D: WARNING DISCLAIMER OR SIGNED STAMP */}
-      {signatureData.isSigned ? (
-        <div className="p-3 rounded-xl bg-[#10B981]/10 border border-[#10B981]/30 flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2.5">
-            <div className="p-1.5 rounded-lg bg-[#10B981]/20 text-[#10B981]">
-              <ShieldCheck className="w-5 h-5" />
-            </div>
-            <div>
-              <div className="text-xs font-bold text-[#10B981]">
-                Протокол утвержден и подписан ЭЦП врача
-              </div>
-              <div className="text-[10px] text-[#10B981]/80 font-mono">
-                {signatureData.doctorName} · {signatureData.timestamp}
-              </div>
-            </div>
-          </div>
-          <span className="text-[10px] font-mono px-2 py-1 rounded bg-[#10B981]/20 text-[#10B981] border border-[#10B981]/30 whitespace-nowrap font-bold">
-            ГОСТ Р 34.10 ✓
-          </span>
-        </div>
-      ) : (
-        <div className="flex items-start gap-3 p-3 bg-[#F59E0B]/10 border border-[#F59E0B]/30 rounded-xl">
-          <svg className="w-5 h-5 text-[#F59E0B] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-          </svg>
-          <p className="text-[10px] text-[#F59E0B] leading-snug">
-            <strong>⚠️ ПРЕДВАРИТЕЛЬНЫЙ ЧЕРНОВИК ИИ ({aiProviderLabel}):</strong> Окончательное заключение ставит и подписывает врач-специалист.
-          </p>
-        </div>
-      )}
+      {/* 3. SECTION D: FINAL-WORD DISCLAIMER */}
+      <div className="flex items-start gap-3 p-3 bg-[#1E293B] border border-[#334155] rounded-xl">
+        <ShieldAlert className="w-5 h-5 text-[#94A3B8] shrink-0" />
+        <p className="text-[10px] text-[#94A3B8] leading-snug">
+          <strong className="text-[#E5E7EB]">Окончательное заключение ставит врач.</strong> Это не диагноз.
+        </p>
+      </div>
     </motion.div>
   );
 };
