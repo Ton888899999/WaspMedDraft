@@ -1,5 +1,12 @@
 @import "tailwindcss";
 
+@media print {
+  @page {
+    size: A4;
+    margin: 10mm;
+  }
+}
+
 @layer utilities {
   .custom-scrollbar::-webkit-scrollbar {
     width: 4px;

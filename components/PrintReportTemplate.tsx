@@ -16,9 +16,9 @@ export const PrintReportTemplate: React.FC<PrintReportTemplateProps> = ({
   signatureData,
 }) => {
   return (
-    <div className="hidden print:block text-black bg-white p-8 max-w-4xl mx-auto font-sans leading-normal">
+    <div className="hidden print:block text-black bg-white p-0 max-w-4xl mx-auto font-sans leading-normal text-[13px] print:break-inside-avoid">
       {/* Clinic Header */}
-      <div className="border-b-2 border-slate-900 pb-4 mb-6 flex justify-between items-start">
+      <div className="border-b-2 border-slate-900 pb-3 mb-4 flex justify-between items-start">
         <div>
           <h1 className="text-xl font-bold uppercase tracking-tight text-slate-900">
             {currentCase.hospitalName}
@@ -38,7 +38,7 @@ export const PrintReportTemplate: React.FC<PrintReportTemplateProps> = ({
       </div>
 
       {/* Patient & Exam Meta Grid */}
-      <table className="w-full text-xs mb-6 border-collapse">
+      <table className="w-full text-xs mb-4 border-collapse">
         <tbody>
           <tr className="border-b border-slate-300">
             <td className="py-1 font-bold text-slate-700 w-1/4">Пациент:</td>
@@ -68,17 +68,17 @@ export const PrintReportTemplate: React.FC<PrintReportTemplateProps> = ({
       </table>
 
       {/* Findings */}
-      <div className="mb-6">
-        <h2 className="text-xs font-bold uppercase tracking-wider text-slate-900 mb-2 border-b border-slate-400 pb-1">
+      <div className="mb-4">
+        <h2 className="text-xs font-bold uppercase tracking-wider text-slate-900 mb-1.5 border-b border-slate-400 pb-1">
           Протокол описания (Findings):
         </h2>
-        <div className="text-xs text-slate-800 text-justify leading-relaxed whitespace-pre-wrap font-serif">
+        <div className="text-xs text-slate-800 text-justify leading-snug whitespace-pre-wrap font-serif">
           {findingsText}
         </div>
       </div>
 
       {/* Impression */}
-      <div className="mb-8 p-4 bg-slate-100 border-l-4 border-slate-800 rounded">
+      <div className="mb-5 p-3 bg-slate-100 border-l-4 border-slate-800 rounded">
         <h2 className="text-xs font-bold uppercase tracking-wider text-slate-900 mb-1">
           Заключение (Impression):
         </h2>
@@ -96,7 +96,7 @@ export const PrintReportTemplate: React.FC<PrintReportTemplateProps> = ({
       </div>
 
       {/* Digital Signature & Stamp Footer */}
-      <div className="mt-12 pt-4 border-t-2 border-slate-900 flex justify-between items-end">
+      <div className="mt-6 pt-3 border-t-2 border-slate-900 flex justify-between items-end">
         <div>
           <div className="text-xs font-bold text-slate-900">
             Врач-рентгенолог: {signatureData.doctorName}
