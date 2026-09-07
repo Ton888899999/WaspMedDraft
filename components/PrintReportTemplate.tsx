@@ -52,18 +52,6 @@ export const PrintReportTemplate: React.FC<PrintReportTemplateProps> = ({
             <td className="py-1 font-bold text-slate-700">Томограф:</td>
             <td className="py-1 text-slate-900">{currentCase.deviceModel}</td>
           </tr>
-          <tr className="border-b border-slate-300">
-            <td className="py-1 font-bold text-slate-700">Толщина среза:</td>
-            <td className="py-1 text-slate-900">{currentCase.sliceThickness}</td>
-            <td className="py-1 font-bold text-slate-700">Контрастирование:</td>
-            <td className="py-1 text-slate-900">{currentCase.contrast}</td>
-          </tr>
-          <tr className="border-b border-slate-300">
-            <td className="py-1 font-bold text-slate-700">Область:</td>
-            <td className="py-1 text-slate-900" colSpan={3}>
-              {currentCase.studyArea}
-            </td>
-          </tr>
         </tbody>
       </table>
 
@@ -96,7 +84,7 @@ export const PrintReportTemplate: React.FC<PrintReportTemplateProps> = ({
       </div>
 
       {/* Digital Signature & Stamp Footer */}
-      <div className="mt-6 pt-3 border-t-2 border-slate-900 flex justify-between items-end">
+      <div className="mt-6 pt-3 border-t-2 border-slate-900">
         <div>
           <div className="text-xs font-bold text-slate-900">
             Врач-рентгенолог: {signatureData.doctorName}
@@ -115,12 +103,6 @@ export const PrintReportTemplate: React.FC<PrintReportTemplateProps> = ({
               * Документ сформирован системой WaspMed Draft и ожидает электронной подписи врача.
             </div>
           )}
-        </div>
-
-        <div className="text-right">
-          <div className="w-20 h-20 border border-slate-400 p-1 inline-flex flex-col items-center justify-center text-[9px] font-mono text-slate-500">
-            [QR-Code Verification]
-          </div>
         </div>
       </div>
     </div>

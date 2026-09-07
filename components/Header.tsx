@@ -15,7 +15,7 @@ export const Header: React.FC<HeaderProps> = ({
   hospitalName = 'Отделение лучевой диагностики',
 }) => {
   return (
-    <header className="flex items-center justify-between gap-2 px-3 sm:px-6 py-2.5 sm:py-3 bg-[#111827] border-b border-[#1E293B] sticky top-0 z-50">
+    <header className="print:hidden flex items-center justify-between gap-2 px-3 sm:px-6 py-2.5 sm:py-3 bg-[#111827] border-b border-[#1E293B] sticky top-0 z-50">
       {/* Brand / Logo */}
       <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
         <div className="w-9 h-9 sm:w-10 sm:h-10 shrink-0 rounded-xl bg-gradient-to-br from-[#0066FF] to-[#00D2FF] flex items-center justify-center shadow-[0_0_15px_rgba(0,102,255,0.4)] text-white">
