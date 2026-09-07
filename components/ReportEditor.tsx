@@ -59,14 +59,23 @@ export const ReportEditor: React.FC<ReportEditorProps> = ({
     }
   };
 
-  // Sync local impression when case changes (new AI generation)
+  // Sync local impression when the case changes from elsewhere (new AI
+  // generation). onImpressionChange round-trips our own edits back down
+  // through currentCase.impression, so we track what we last sent up and
+  // skip the reset when the prop is just our own edit echoing back —
+  // otherwise every keystroke would immediately kick the field out of
+  // edit mode.
+  const lastPropagatedImpression = React.useRef(currentCase.impression);
   React.useEffect(() => {
+    if (currentCase.impression === lastPropagatedImpression.current) return;
+    lastPropagatedImpression.current = currentCase.impression;
     setLocalImpression(currentCase.impression);
     setIsEditingImpression(false);
   }, [currentCase.impression]);
 
   const handleImpressionChange = (v: string) => {
     setLocalImpression(v);
+    lastPropagatedImpression.current = v;
     onImpressionChange?.(v);
   };
 

@@ -309,6 +309,13 @@ export default function Home() {
     setCustomCase((prev) => (prev ? { ...prev, patientName: name } : prev));
   };
 
+  // Persist manual edits to the impression text into the case itself, so
+  // print / copy / clipboard all reflect what the doctor actually wrote,
+  // not the original AI-generated draft.
+  const handleImpressionChange = (impression: string) => {
+    setCustomCase((prev) => (prev ? { ...prev, impression } : prev));
+  };
+
   // Reset view parameters
   const handleResetView = () => {
     setZoomLevel(100);
@@ -440,6 +447,7 @@ export default function Home() {
                     currentCase={activeCase}
                     findingsText={findingsText}
                     onFindingsTextChange={setFindingsText}
+                    onImpressionChange={handleImpressionChange}
                     onJumpToSlice={handleJumpToSlice}
                     onPatientNameChange={handlePatientNameChange}
                     onRegenerate={handleRunAiGeneration}
