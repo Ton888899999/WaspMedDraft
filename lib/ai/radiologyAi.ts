@@ -232,11 +232,21 @@ function selectRepresentativeSlices(slices: DicomSlice[], maxImages: number): Di
 
 const GEMINI_MODEL = 'gemini-3.6-flash';
 
+/** HTTP statuses Gemini itself documents as transient — safe to retry. */
+function isRetryableStatus(status: number): boolean {
+  return status === 503 || status === 429 || status === 500;
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 async function callGeminiVision(
   apiKey: string,
   systemPrompt: string,
   userText: string,
   imageBase64List: Array<{ data: string; mimeType: string }>,
+  onRetry?: (attempt: number, maxAttempts: number, delayMs: number) => void,
 ): Promise<string> {
   // Build parts: first the text context, then all images
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -255,27 +265,45 @@ async function callGeminiVision(
     },
   };
 
-  const resp = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    },
-  );
+  // Gemini occasionally answers 503 "high demand" / 429 rate-limit — both are
+  // explicitly documented as transient, so retry a couple of times with a
+  // short backoff before giving up.
+  const MAX_ATTEMPTS = 3;
+  const RETRY_DELAYS_MS = [2000, 5000];
 
-  if (!resp.ok) {
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    const resp = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      },
+    );
+
+    if (resp.ok) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const data: any = await resp.json();
+      const text: string =
+        data?.candidates?.[0]?.content?.parts?.[0]?.text ??
+        data?.candidates?.[0]?.content?.parts?.map((p: { text?: string }) => p.text ?? '').join('') ??
+        '';
+      return text;
+    }
+
     const errText = await resp.text();
-    throw new Error(`Gemini API ${resp.status}: ${errText.slice(0, 300)}`);
+    const error = new Error(`Gemini API ${resp.status}: ${errText.slice(0, 300)}`);
+
+    const canRetry = isRetryableStatus(resp.status) && attempt < MAX_ATTEMPTS;
+    if (!canRetry) throw error;
+
+    const delay = RETRY_DELAYS_MS[attempt - 1] ?? 5000;
+    onRetry?.(attempt, MAX_ATTEMPTS, delay);
+    await sleep(delay);
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const data: any = await resp.json();
-  const text: string =
-    data?.candidates?.[0]?.content?.parts?.[0]?.text ??
-    data?.candidates?.[0]?.content?.parts?.map((p: { text?: string }) => p.text ?? '').join('') ??
-    '';
-  return text;
+  // Unreachable — the loop always returns or throws — but keeps TS satisfied.
+  throw new Error('Gemini API: превышено число попыток');
 }
 
 // ─── Main export ──────────────────────────────────────────────────────────────
@@ -385,7 +413,12 @@ export async function generateRadiologyConclusion(
 
       onProgress?.(`Отправка ${images.length} снимков в Gemini Vision…`, 40);
 
-      const rawText = await callGeminiVision(apiKey, RADIOLOGY_SYSTEM, promptText, images);
+      const rawText = await callGeminiVision(apiKey, RADIOLOGY_SYSTEM, promptText, images, (attempt, max, delayMs) => {
+        onProgress?.(
+          `Gemini временно перегружен (попытка ${attempt}/${max}) — повтор через ${Math.round(delayMs / 1000)} с…`,
+          40,
+        );
+      });
 
       onProgress?.('Парсинг ответа ИИ…', 90);
 
@@ -406,9 +439,25 @@ export async function generateRadiologyConclusion(
         provider: `${providerLabel} · ${images.length}/${totalSlices} срезов`,
       };
     } catch (err) {
-      // Fall through to template fallback with error note
+      // Fall through to template fallback with error note. This is an
+      // already-handled, expected failure mode (transient upstream outage,
+      // bad key, no network) — not a code bug — so warn, don't error, to
+      // avoid tripping the dev-mode error overlay for something the app
+      // already recovers from gracefully.
       const errMsg = err instanceof Error ? err.message : String(err);
-      console.error('[radiologyAi] Gemini Vision error:', errMsg);
+      const isOverloaded = /Gemini API (503|429|500)/.test(errMsg) || /UNAVAILABLE|overloaded|high demand/i.test(errMsg);
+      console.warn('[radiologyAi] Gemini Vision unavailable, using fallback:', errMsg);
+
+      if (isOverloaded) {
+        return {
+          findings: `[Gemini Vision временно недоступен: сервис перегружен]\n\n${errMsg}\n\nЭто временная проблема на стороне Google, а не ошибка настройки — попробуйте запустить генерацию ещё раз через минуту.`,
+          conclusion: 'Сервис Gemini временно перегружен. Повторите генерацию через минуту.',
+          recommendations: 'Это не связано с вашим API-ключом или настройками — повторите попытку позже.',
+          annotations: [],
+          provider: `${providerNames.gemini} — ВРЕМЕННО НЕДОСТУПЕН`,
+        };
+      }
+
       return {
         findings: `[Ошибка Gemini Vision API: ${errMsg}]\n\nДля работы требуется корректный API-ключ Gemini и доступ к интернету.`,
         conclusion: 'Не удалось получить ИИ-заключение. Проверьте API-ключ и повторите.',
