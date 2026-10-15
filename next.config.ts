@@ -2,6 +2,10 @@ import type {NextConfig} from 'next';
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  // The WaspMed clinic-system landing is a static page in public/.
+  async rewrites() {
+    return [{ source: '/waspmed', destination: '/waspmed.html' }];
+  },
   eslint: {
     ignoreDuringBuilds: true,
   },
