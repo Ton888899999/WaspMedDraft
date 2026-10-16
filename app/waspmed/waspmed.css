@@ -33,7 +33,8 @@ body:has(.wm[data-theme="dark"]) { background: #0b1513; }
 html:has(.wm) { scroll-behavior: smooth; scroll-padding-top: 80px; }
 
 .wm, .wm * { box-sizing: border-box; }
-.wm { min-height: 100vh; overflow-x: hidden; background: var(--bg); color: var(--ink); font: 16px/1.6 var(--font-onest), Onest, Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif; -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
+/* clip, not hidden: a hidden overflow would make .wm a scroll container and unstick the nav. */
+.wm { min-height: 100vh; overflow-x: clip; background: var(--bg); color: var(--ink); font: 16px/1.6 var(--font-onest), Onest, Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif; -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
 .wm a { color: inherit; }
 .wm img { max-width: 100%; }
 /* Inline, as browsers show it by default: Tailwind's reset makes every svg a block. */
