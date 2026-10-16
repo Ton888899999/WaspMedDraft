@@ -37,6 +37,8 @@ export interface Screen {
   lead: Text;
   checks: Text[];
   shot: Shot;
+  /** A link under the checklist to a page about this part of the product. */
+  more?: { href: string; label: Text };
 }
 
 export interface Department {
@@ -51,12 +53,16 @@ export const TITLES = t(
   'WaspMed — clinic management system',
 );
 
+/** The radiology part of WaspMed has its own page. */
+export const DRAFT_HREF = '/draft';
+
 export const NAV = [
   { href: '#tour', label: t('Продукт', 'Маҳсулот', 'Product') },
   { href: '#modules', label: t('Модули', 'Модуллар', 'Modules') },
   { href: '#security', label: t('Безопасность', 'Хавфсизлик', 'Security') },
   { href: '#launch', label: t('Внедрение', 'Жорий этиш', 'Onboarding') },
   { href: '#faq', label: t('Вопросы', 'Саволлар', 'FAQ') },
+  { href: DRAFT_HREF, label: t('WaspMed Draft', 'WaspMed Draft', 'WaspMed Draft') },
 ];
 
 export const REQUEST_DEMO = t('Запросить демо', 'Демо сўраш', 'Request a demo');
@@ -309,38 +315,44 @@ export const DEPARTMENTS: Department[] = [
         ],
         dicomViewer,
       ),
-      screen(
-        t('AI-черновик заключения рентгенолога', 'Рентгенолог хулосасининг AI қораламаси', 'AI draft of the radiology report'),
-        t(
-          'Система читает все срезы КТ или МРТ и пишет протокол по шаблону клиники. Врач проверяет и подписывает.',
-          'Тизим КТ ёки МРТнинг барча кесимларини ўқийди ва клиника шаблони бўйича протокол ёзади. Шифокор текширади ва имзолайди.',
-          'The system reads every CT or MRI slice and writes the report in the clinic’s template. The doctor reviews and signs it.',
+      {
+        ...screen(
+          t('AI-черновик заключения рентгенолога', 'Рентгенолог хулосасининг AI қораламаси', 'AI draft of the radiology report'),
+          t(
+            'Система читает все срезы КТ или МРТ и пишет протокол по шаблону клиники. Врач проверяет и подписывает.',
+            'Тизим КТ ёки МРТнинг барча кесимларини ўқийди ва клиника шаблони бўйича протокол ёзади. Шифокор текширади ва имзолайди.',
+            'The system reads every CT or MRI slice and writes the report in the clinic’s template. The doctor reviews and signs it.',
+          ),
+          [
+            t(
+              'Все срезы серии и реконструкции в трёх плоскостях',
+              'Сериянинг барча кесимлари ва уч текисликдаги реконструкциялар',
+              'Every slice of the series plus reconstructions in three planes',
+            ),
+            t('18 шаблонов протоколов МСКТ и МРТ', 'МСКТ ва МРТ учун 18 та протокол шаблони', '18 CT and MRI report templates'),
+            t(
+              'Находки отмечены на снимке, клик открывает нужный срез',
+              'Топилмалар тасвирда белгиланган, босилса керакли кесим очилади',
+              'Findings are marked on the image; a click opens the right slice',
+            ),
+            t(
+              'Размеры в миллиметрах по данным DICOM, а не на глаз',
+              'Ўлчамлар кўз билан эмас, DICOM маълумотлари бўйича миллиметрда',
+              'Sizes in millimetres from the DICOM data, not by eye',
+            ),
+            t(
+              'Учитывает жалобы, вопрос врача и прошлое заключение',
+              'Шикоятлар, шифокор саволи ва олдинги хулосани ҳисобга олади',
+              'Uses the complaints, the referring question and the prior report',
+            ),
+          ],
+          aiReportDraft,
         ),
-        [
-          t(
-            'Все срезы серии и реконструкции в трёх плоскостях',
-            'Сериянинг барча кесимлари ва уч текисликдаги реконструкциялар',
-            'Every slice of the series plus reconstructions in three planes',
-          ),
-          t('18 шаблонов протоколов МСКТ и МРТ', 'МСКТ ва МРТ учун 18 та протокол шаблони', '18 CT and MRI report templates'),
-          t(
-            'Находки отмечены на снимке, клик открывает нужный срез',
-            'Топилмалар тасвирда белгиланган, босилса керакли кесим очилади',
-            'Findings are marked on the image; a click opens the right slice',
-          ),
-          t(
-            'Размеры в миллиметрах по данным DICOM, а не на глаз',
-            'Ўлчамлар кўз билан эмас, DICOM маълумотлари бўйича миллиметрда',
-            'Sizes in millimetres from the DICOM data, not by eye',
-          ),
-          t(
-            'Учитывает жалобы, вопрос врача и прошлое заключение',
-            'Шикоятлар, шифокор саволи ва олдинги хулосани ҳисобга олади',
-            'Uses the complaints, the referring question and the prior report',
-          ),
-        ],
-        aiReportDraft,
-      ),
+        more: {
+          href: DRAFT_HREF,
+          label: t('Подробнее о WaspMed Draft', 'WaspMed Draft ҳақида батафсил', 'More about WaspMed Draft'),
+        },
+      },
       screen(
         t('Протокол на бланке клиники', 'Клиника бланкасидаги протокол', 'Report on the clinic letterhead'),
         t(

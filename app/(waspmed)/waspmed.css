@@ -154,6 +154,7 @@ html:has(.wm) { scroll-behavior: smooth; scroll-padding-top: 80px; }
 .wm .checks { list-style: none; padding: 0; margin: 0; display: grid; gap: 11px; }
 .wm .checks li { display: flex; gap: 11px; align-items: flex-start; font-size: 15px; color: var(--ink-2); }
 .wm .checks li svg { width: 18px; height: 18px; margin-top: 2px; color: var(--brand); }
+.wm .screen .more { margin-top: 24px; }
 .wm .shot { display: block; width: 100%; padding: 0; font: inherit; text-align: inherit; border-radius: 14px; overflow: hidden; border: 1px solid var(--line-2); box-shadow: var(--shadow); background: var(--surface); cursor: zoom-in; position: relative; }
 .wm .shot img { display: block; width: 100%; height: auto; transition: transform .5s ease; }
 .wm .shot:hover img { transform: scale(1.015); }

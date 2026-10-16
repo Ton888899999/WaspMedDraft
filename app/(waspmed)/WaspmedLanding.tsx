@@ -2,6 +2,7 @@
 
 import React from 'react';
 import Image from 'next/image';
+import Link from 'next/link';
 import { ICONS, type IconId } from './icons';
 import {
   CONTACT,
@@ -163,11 +164,17 @@ export function WaspmedLanding({ className }: { className?: string }) {
         <div className="wrap">
           {logo}
           <div className="links">
-            {NAV.map((item) => (
-              <a key={item.href} href={item.href}>
-                {tr(item.label)}
-              </a>
-            ))}
+            {NAV.map((item) =>
+              item.href.startsWith('#') ? (
+                <a key={item.href} href={item.href}>
+                  {tr(item.label)}
+                </a>
+              ) : (
+                <Link key={item.href} href={item.href}>
+                  {tr(item.label)}
+                </Link>
+              ),
+            )}
           </div>
           <div className="nav-r">
             <div className="lang" role="group" aria-label="Language">
@@ -326,6 +333,11 @@ export function WaspmedLanding({ className }: { className?: string }) {
                         </li>
                       ))}
                     </ul>
+                    {s.more && (
+                      <Link className="btn btn-line btn-sm more" href={s.more.href}>
+                        {tr(s.more.label)} <Icon id="arrow" />
+                      </Link>
+                    )}
                   </div>
                   <button type="button" className="shot" onClick={() => setZoomed(s.shot)}>
                     {shotImage(s.shot, SCREEN_SIZES)}
